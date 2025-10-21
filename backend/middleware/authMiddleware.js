@@ -1,27 +1,38 @@
 const jwt = require("jsonwebtoken");
 
-const protect = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1]; // Bearer TOKEN
-  if (!token) return res.status(401).json({ message: "Not authorized" });
+// Middleware to authenticate user token
+function authMiddleware(req, res, next) {
+  const token = req.header("Authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return res.status(401).json({ message: "No token, authorization denied" });
+  }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // contains userId & role
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
-  } catch (err) {
-    return res.status(401).json({ message: "Token invalid" });
+  } catch {
+    res.status(401).json({ message: "Token is not valid" });
   }
-};
+}
 
-const authorizeRoles = (...roles) => {
+// Middleware to check admin role
+function isAdmin(req, res, next) {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ message: "Only admin can register warden" });
+  }
+  next();
+}
+
+function authorizeRoles(...allowedRoles) {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res
-        .status(403)
-        .json({ message: "Forbidden: You do not have access" });
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Access denied" });
     }
     next();
   };
-};
+}
 
-module.exports = { protect, authorizeRoles };
+module.exports = {
+  authMiddleware,
+  isAdmin,
+};
