@@ -1,42 +1,37 @@
+// 📁 server.js
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-// Import routes
-const userRoutes = require("./routes/userRoutes"); // ✅ make sure the path is correct
-
-const roomRoutes = require("./routes/roomRoutes");
-
-const attendanceRoutes = require("./routes/attendanceRoutes");
-
-const complaintRoutes = require("./routes/complaintRoutes");
-
-const authRoutes = require("./routes/authRoutes");
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// 🧠 Middleware
 app.use(cors());
-app.use(express.json()); // ✅ must be before routes
+app.use(express.json());
 
+// 🔗 Import all routes
+const userRoutes = require("./routes/userRoutes");
+const studentRoutes = require("./routes/studentRoutes");
+const roomRoutes = require("./routes/roomRoutes");
+const attendanceRoutes = require("./routes/attendanceRoutes");
+const complaintRoutes = require("./routes/complaintRoutes");
+const authRoutes = require("./routes/authRoutes");
+
+// 🛠️ Route mapping
+app.use("/api/users", userRoutes);
+app.use("/api/students", studentRoutes);
 app.use("/api/rooms", roomRoutes);
-
 app.use("/api/attendance", attendanceRoutes);
-
 app.use("/api/complaints", complaintRoutes);
-
 app.use("/api/auth", authRoutes);
 
-// Routes
-app.use("/api/users", userRoutes); // ✅ make sure userRoutes exports router correctly
-
-// Test route
+// 🧪 Health Check
 app.get("/", (req, res) => {
   res.send("ADHAS Backend Running ✅");
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+// 🚀 Start Server
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on http://10.69.232.21:${PORT}`);
 });
