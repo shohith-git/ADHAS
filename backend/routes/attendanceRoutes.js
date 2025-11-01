@@ -1,15 +1,15 @@
+// adhas/backend/routes/attendanceRoutes.js
 const express = require("express");
-const {
-  markAttendance,
-  getAttendance,
-} = require("../controllers/attendanceController");
-
 const router = express.Router();
+const attendanceController = require("../controllers/attendanceController");
 
-// POST /api/attendance → mark attendance
-router.post("/", markAttendance);
+// Mark attendance
+router.post("/", attendanceController.markAttendance);
 
-// GET /api/attendance/:student_id → get attendance
-router.get("/:student_id", getAttendance);
+// Get all attendance (warden/admin)
+router.get("/", attendanceController.getAllAttendance);
+
+// Get attendance by student
+router.get("/:studentId", attendanceController.getAttendanceByStudent);
 
 module.exports = router;

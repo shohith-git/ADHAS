@@ -1,3 +1,5 @@
+// adhas/frontend/screens/warden/complaints.jsx
+
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -6,21 +8,25 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Picker,
   Alert,
 } from "react-native";
 import axios from "axios";
+import { Picker } from "@react-native-picker/picker"; // ensure installed
 import { router } from "expo-router";
 
 export default function WardenComplaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const BACKEND = "http://10.196.39.21:5000"; // ✅ update if IP changes
-  const token =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Miwicm9sZSI6IndhcmRlbiIsImNvbGxlZ2UiOiJjaXRfbmMuZWR1LmluIiwiaWF0IjoxNzYxNjY2MjIyLCJleHAiOjE3NjE2ODc4MjJ9.W4i9fRBzi0KOADQpbvscoGc57unD5PztUVdiXk3R51c";
 
-  // Fetch complaints
+  // ✅ Backend base URL
+  const BACKEND = "http://10.69.232.21:5000";
+
+  // ✅ Temporary warden JWT token for testing
+  const token =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Miwicm9sZSI6IndhcmRlbiIsImNvbGxlZ2UiOiJjaXRfbmMuZWR1LmluIiwiaWF0IjoxNzYxOTkzOTMxLCJleHAiOjE3NjIwMTU1MzF9.1RBDfdOovVsv6t_r3QOWZnB-dg-OYWQGF7Ph45vdOk0";
+
+  // 🟢 Fetch all complaints
   const fetchComplaints = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/complaints`, {
@@ -39,11 +45,11 @@ export default function WardenComplaints() {
     fetchComplaints();
   }, []);
 
-  // Update complaint status
+  // 🟠 Update complaint status
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
-        `${BACKEND}/api/complaints/${id}/status`,
+        `${BACKEND}/api/complaints/status/${id}`,
         { status: newStatus },
         {
           headers: {
@@ -52,26 +58,28 @@ export default function WardenComplaints() {
           },
         }
       );
-      Alert.alert("✅ Success", `Status updated to ${newStatus}`);
-      fetchComplaints(); // refresh list
+      Alert.alert("✅ Success", `Status updated to "${newStatus}"`);
+      fetchComplaints(); // Refresh after update
     } catch (err) {
       console.error("Error updating status:", err.response?.data || err);
       Alert.alert("❌ Error", "Failed to update complaint status");
     }
   };
 
-  // Color styling for status
+  // 🟡 Status color helper
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "resolved":
         return { backgroundColor: "#bbf7d0", color: "#065f46" };
       case "in-progress":
+      case "in progress":
         return { backgroundColor: "#fde68a", color: "#92400e" };
       default:
         return { backgroundColor: "#fecaca", color: "#991b1b" };
     }
   };
 
+  // 🧭 Loading state
   if (loading)
     return (
       <View style={styles.center}>
@@ -80,6 +88,7 @@ export default function WardenComplaints() {
       </View>
     );
 
+  // ❌ Error state
   if (error)
     return (
       <View style={styles.center}>
@@ -87,6 +96,7 @@ export default function WardenComplaints() {
       </View>
     );
 
+  // 🧾 UI Layout
   return (
     <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.title}>📋 Complaints (Warden View)</Text>
@@ -95,16 +105,13 @@ export default function WardenComplaints() {
         <Text style={{ color: "#64748b" }}>No complaints available.</Text>
       ) : (
         complaints.map((c) => {
-          const style = getStatusColor(c.status);
+          const style = getStatusColor(c.status || "pending");
           return (
             <View key={c.id} style={styles.card}>
               <Text style={styles.cardTitle}>{c.title}</Text>
-              <Text style={styles.meta}>
-                {c.student_name} ({c.student_email})
-              </Text>
+              <Text style={styles.meta}>User ID: {c.user_id}</Text>
               <Text style={styles.desc}>{c.description}</Text>
 
-              {/* Status dropdown */}
               <View style={styles.statusRow}>
                 <Text
                   style={[
@@ -115,7 +122,7 @@ export default function WardenComplaints() {
                     },
                   ]}
                 >
-                  {c.status.toUpperCase()}
+                  {c.status?.toUpperCase()}
                 </Text>
 
                 <Picker
