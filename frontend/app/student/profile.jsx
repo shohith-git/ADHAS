@@ -1,3 +1,4 @@
+// frontend/app/student/profile.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -24,9 +25,7 @@ export default function StudentProfile() {
   const studentId = rawId ? Number(rawId) : null;
 
   const redirectToLogin = () => {
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+    if (typeof window !== "undefined") window.location.href = "/login";
   };
 
   const fetchProfile = async () => {
@@ -53,7 +52,6 @@ export default function StudentProfile() {
     }
 
     try {
-      console.log(`Fetching profile for studentId=${studentId}`);
       const res = await axios.get(`${BACKEND}/api/students/${studentId}`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
@@ -76,7 +74,7 @@ export default function StudentProfile() {
       } else {
         Alert.alert("Network Error", "Check your internet connection.");
       }
-      console.error("Error fetching profile:", err.message);
+      console.error("Error fetching profile:", err.message || err);
     } finally {
       setLoading(false);
     }
@@ -84,6 +82,7 @@ export default function StudentProfile() {
 
   useEffect(() => {
     fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading)
@@ -130,7 +129,6 @@ export default function StudentProfile() {
         <Row label="Mother Number" value={student.mother_number || "—"} />
       </View>
 
-      {/* Back Button */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/student-dashboard")}
@@ -141,7 +139,6 @@ export default function StudentProfile() {
   );
 }
 
-/* 🔹 Row component for neat profile layout */
 const Row = ({ label, value }) => (
   <View style={styles.row}>
     <Text style={styles.label}>{label}</Text>
@@ -188,9 +185,5 @@ const styles = StyleSheet.create({
     marginTop: 25,
     marginBottom: 10,
   },
-  backText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-  },
+  backText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });

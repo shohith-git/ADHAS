@@ -1,18 +1,24 @@
-// adhas/backend/routes/complaintRoutes.js
+// backend/routes/complaintRoutes.js
 const express = require("express");
 const router = express.Router();
-const complaintController = require("../controllers/complaintController");
+const {
+  addComplaint,
+  getAllComplaints,
+  getComplaintsByStudent,
+  updateComplaintStatus,
+} = require("../controllers/complaintController");
+const { authMiddleware, isWarden } = require("../middleware/authMiddleware");
 
-// Add new complaint
-router.post("/add", complaintController.addComplaint);
+// 🟢 Student submits complaint
+router.post("/", authMiddleware, addComplaint);
 
-// Get all complaints (warden/admin)
-router.get("/", complaintController.getAllComplaints);
+// 👨‍🏫 Warden views all complaints
+router.get("/", authMiddleware, isWarden, getAllComplaints);
 
-// Get complaints by student
-router.get("/:studentId", complaintController.getComplaintsByStudent);
+// 🧍‍♂️ Student views their own complaints
+router.get("/:studentId", authMiddleware, getComplaintsByStudent);
 
-// Update complaint status (warden)
-router.put("/status/:id", complaintController.updateComplaintStatus);
+// 🔄 Update status (Warden)
+router.put("/status/:id", authMiddleware, isWarden, updateComplaintStatus);
 
 module.exports = router;

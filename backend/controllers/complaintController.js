@@ -1,61 +1,72 @@
-// adhas/backend/controllers/complaintController.js
+// backend/controllers/complaintController.js
 const pool = require("../db");
 
-// 🟢 Add a new complaint (Student)
+// 🟢 Student submits complaint
 exports.addComplaint = async (req, res) => {
   try {
-    const { user_id, title, description } = req.body;
+    const user = req.user; // comes from authMiddleware
+    const { title, description } = req.body;
 
-    if (!user_id || !title || !description) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!title || !description) {
+      return res
+        .status(400)
+        .json({ message: "Title and description are required" });
     }
 
-    const query = `
-      INSERT INTO complaints (user_id, title, description, status, created_at, updated_at)
-      VALUES ($1, $2, $3, 'pending', NOW(), NOW())
-      RETURNING *;
-    `;
-    const values = [user_id, title, description];
-    const result = await pool.query(query, values);
+    // Get student room_no
+    const prof = await pool.query(
+      "SELECT room_no FROM student_profiles WHERE user_id = $1",
+      [user.id]
+    );
+    const room_no = prof.rows[0]?.room_no || null;
+
+    // Insert complaint
+    const result = await pool.query(
+      `INSERT INTO complaints (user_id, student_id, room_no, title, description, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
+       RETURNING *`,
+      [user.id, user.id, room_no, title, description]
+    );
 
     res.status(201).json({
-      message: "Complaint added successfully",
+      message: "Complaint submitted successfully ✅",
       complaint: result.rows[0],
     });
   } catch (err) {
-    console.error("❌ Error adding complaint:");
-    console.error("Message:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ Error submitting complaint:", err.message);
+    res.status(500).json({ message: "Error submitting complaint" });
   }
 };
 
-// 🟡 Get all complaints (Warden/Admin)
+// 🟣 Warden/Admin view all complaints with student name, email, and room
 exports.getAllComplaints = async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM complaints ORDER BY created_at DESC"
+      `SELECT c.id, c.title, c.description, c.status, c.room_no, c.created_at,
+              u.id as user_id, u.name AS student_name, u.email
+       FROM complaints c
+       LEFT JOIN users u ON u.id = c.student_id
+       ORDER BY c.created_at DESC`
     );
     res.status(200).json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching all complaints:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ Error fetching complaints:", err.message);
+    res.status(500).json({ message: "Error fetching complaints" });
   }
 };
 
-// 🔵 Get complaints by user ID (Student)
+// 🔵 Fetch complaints for a specific student
 exports.getComplaintsByStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
-
     const result = await pool.query(
-      "SELECT * FROM complaints WHERE user_id = $1 ORDER BY created_at DESC",
+      `SELECT * FROM complaints WHERE user_id = $1 ORDER BY created_at DESC`,
       [studentId]
     );
-
     res.status(200).json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching complaints by student:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ Error fetching student complaints:", err.message);
+    res.status(500).json({ message: "Error fetching student complaints" });
   }
 };
 
@@ -65,25 +76,34 @@ exports.updateComplaintStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const query = `
-      UPDATE complaints
-      SET status = $1, updated_at = NOW()
-      WHERE id = $2
-      RETURNING *;
-    `;
-    const values = [status, id];
-    const result = await pool.query(query, values);
+    // ✅ Allow only specific statuses
+    const allowedStatuses = ["pending", "in-progress", "resolved", "denied"];
+    if (!allowedStatuses.includes(status.toLowerCase())) {
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${allowedStatuses.join(
+          ", "
+        )}`,
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE complaints
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [status, id]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Complaint not found" });
     }
 
     res.status(200).json({
-      message: "Status updated successfully",
+      message: `Complaint marked as '${status}' successfully`,
       complaint: result.rows[0],
     });
   } catch (err) {
     console.error("❌ Error updating complaint status:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Error updating complaint status" });
   }
 };
