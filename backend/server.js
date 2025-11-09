@@ -17,6 +17,8 @@ const roomRoutes = require("./routes/roomRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const complaintRoutes = require("./routes/complaintRoutes");
 const authRoutes = require("./routes/authRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const profileRoutes = require("./routes/profileRoutes");
 
 // 🛠️ Route mapping
 app.use("/api/users", userRoutes);
@@ -25,6 +27,8 @@ app.use("/api/rooms", roomRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/profile", profileRoutes);
 
 // 🧪 Health Check
 app.get("/", (req, res) => {
