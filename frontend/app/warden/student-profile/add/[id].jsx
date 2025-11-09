@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,19 +6,27 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
 import axios from "axios";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import Swal from "sweetalert2";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
-export default function AddStudentProfile() {
-  const { id } = useLocalSearchParams();
+export default function WardenStudentDetails({ mode = "add" }) {
+  // mode: "add" or "edit"
   const router = useRouter();
+  const { id } = useLocalSearchParams();
+  const studentId = id;
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const BACKEND = "http://10.69.232.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  const [form, setForm] = useState({
+  const [details, setDetails] = useState({
+    usn: "",
     dept_branch: "",
     year: "",
     batch: "",
@@ -31,176 +39,326 @@ export default function AddStudentProfile() {
     father_number: "",
     mother_name: "",
     mother_number: "",
+    profile_photo: "",
   });
-  const [saving, setSaving] = useState(false);
 
-  const handleChange = (key, value) => {
-    setForm({ ...form, [key]: value });
-  };
+  // Fetch student if editing
+  useEffect(() => {
+    const fetchStudent = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await axios.get(`${BACKEND}/api/students/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setDetails((prev) => ({ ...prev, ...res.data }));
+      } catch (err) {
+        Swal.fire("❌ Error", "Unable to load student details", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleSubmit = async () => {
-    if (!form.dept_branch || !form.year || !form.batch || !form.room_no) {
-      return Alert.alert(
+    fetchStudent();
+  }, [studentId]);
+
+  // Save or Update student
+  const handleSave = async () => {
+    if (!details.usn || !details.room_no)
+      return Swal.fire(
         "⚠️ Missing Info",
-        "Please fill all required (*) fields."
+        "USN and Room No are required",
+        "warning"
       );
-    }
+
     try {
       setSaving(true);
-      await axios.put(`${BACKEND}/api/students/${id}/details`, form, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      Alert.alert("✅ Success", "Student details added successfully");
-      router.push({
-        pathname: "/warden/student-profile",
-        params: { refresh: Date.now().toString() },
-      });
+      const res = await axios.put(
+        `${BACKEND}/api/students/${studentId}/details`,
+        details,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      Swal.fire("✅ Success", res.data.message, "success");
+      router.push("/warden/student-profile");
     } catch (err) {
-      console.error("Error saving profile:", err.message);
-      Alert.alert("Error", "Failed to save student details");
+      Swal.fire(
+        "❌ Error",
+        err.response?.data?.message || "Failed to save details",
+        "error"
+      );
     } finally {
       setSaving(false);
     }
   };
 
+  const handleBack = () => router.push("/warden/student-profile");
+
+  if (loading)
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text>Loading student data...</Text>
+      </View>
+    );
+
   return (
     <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.header}>Add Student Details</Text>
-      <Text style={styles.subHeader}>Student ID: {id}</Text>
+      <Text style={styles.title}>
+        {mode === "edit" ? "✏️ Edit Student Details" : "🧾 Add Student Details"}
+      </Text>
 
-      <View style={styles.formSection}>
-        <LabeledInput
-          label="Department *"
-          value={form.dept_branch}
-          onChangeText={(t) => handleChange("dept_branch", t)}
-        />
-        <LabeledInput
-          label="Year *"
-          value={String(form.year)}
-          onChangeText={(t) => handleChange("year", t)}
-        />
-        <LabeledInput
-          label="Batch *"
-          value={form.batch}
-          onChangeText={(t) => handleChange("batch", t)}
-        />
-        <LabeledInput
-          label="Room No *"
-          value={form.room_no}
-          onChangeText={(t) => handleChange("room_no", t)}
-        />
-        <LabeledInput
-          label="Gender"
-          value={form.gender}
-          onChangeText={(t) => handleChange("gender", t)}
-        />
-        <LabeledInput
-          label="Date of Birth"
-          placeholder="YYYY-MM-DD"
-          value={form.dob}
-          onChangeText={(t) => handleChange("dob", t)}
-        />
-        <LabeledInput
-          label="Phone Number"
-          value={form.phone_number}
-          onChangeText={(t) => handleChange("phone_number", t)}
-          keyboardType="numeric"
-        />
-        <LabeledInput
-          label="Address"
-          value={form.address}
-          onChangeText={(t) => handleChange("address", t)}
-        />
+      {/* ─── Basic Info ─── */}
+      <Text style={styles.sectionTitle}>Basic Information</Text>
 
-        <Text style={styles.sectionHeader}>Parent Details</Text>
-        <LabeledInput
-          label="Father Name"
-          value={form.father_name}
-          onChangeText={(t) => handleChange("father_name", t)}
-        />
-        <LabeledInput
-          label="Father Number"
-          value={form.father_number}
-          onChangeText={(t) => handleChange("father_number", t)}
-          keyboardType="numeric"
-        />
-        <LabeledInput
-          label="Mother Name"
-          value={form.mother_name}
-          onChangeText={(t) => handleChange("mother_name", t)}
-        />
-        <LabeledInput
-          label="Mother Number"
-          value={form.mother_number}
-          onChangeText={(t) => handleChange("mother_number", t)}
-          keyboardType="numeric"
-        />
+      {/* ─── Profile ─── */}
+      <Text style={styles.sectionTitle}>Profile</Text>
+
+      <Text style={styles.label}>Profile Photo (URL)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Paste photo URL or leave blank"
+        value={details.profile_photo}
+        onChangeText={(text) => setDetails({ ...details, profile_photo: text })}
+      />
+
+      <Text style={styles.label}>USN</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter unique student number"
+        value={details.usn}
+        onChangeText={(text) => setDetails({ ...details, usn: text })}
+      />
+
+      <Text style={styles.label}>Department / Branch</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. CSE / ECE / MECH"
+        value={details.dept_branch}
+        onChangeText={(text) => setDetails({ ...details, dept_branch: text })}
+      />
+
+      <Text style={styles.label}>Year</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. 2"
+        keyboardType="numeric"
+        value={details.year?.toString() || ""}
+        onChangeText={(text) => setDetails({ ...details, year: text })}
+      />
+
+      <Text style={styles.label}>Batch</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. 2023-27"
+        value={details.batch}
+        onChangeText={(text) => setDetails({ ...details, batch: text })}
+      />
+
+      <Text style={styles.label}>Room Number</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. E101"
+        value={details.room_no}
+        onChangeText={(text) => setDetails({ ...details, room_no: text })}
+      />
+
+      <Text style={styles.label}>Gender</Text>
+      <View style={styles.radioGroup}>
+        {["Male", "Female", "Other"].map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={styles.radioOption}
+            onPress={() => setDetails({ ...details, gender: option })}
+          >
+            <View style={styles.radioCircle}>
+              {details.gender === option && (
+                <View style={styles.radioSelected} />
+              )}
+            </View>
+            <Text style={styles.radioText}>{option}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
+      <Text style={styles.label}>Date of Birth</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="YYYY-MM-DD"
+        value={details.dob}
+        onChangeText={(text) => setDetails({ ...details, dob: text })}
+      />
+
+      {/* ─── Contact Info ─── */}
+      <Text style={styles.sectionTitle}>Contact Details</Text>
+
+      <Text style={styles.label}>Phone Number</Text>
+      <TextInput
+        style={styles.input}
+        keyboardType="phone-pad"
+        placeholder="Enter phone number"
+        value={details.phone_number}
+        onChangeText={(text) => setDetails({ ...details, phone_number: text })}
+      />
+
+      <Text style={styles.label}>Address</Text>
+      <TextInput
+        style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+        multiline
+        placeholder="Enter full address"
+        value={details.address}
+        onChangeText={(text) => setDetails({ ...details, address: text })}
+      />
+
+      {/* ─── Parent Info ─── */}
+      <Text style={styles.sectionTitle}>Parent Details</Text>
+
+      <Text style={styles.label}>Father's Name</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter father's name"
+        value={details.father_name}
+        onChangeText={(text) => setDetails({ ...details, father_name: text })}
+      />
+
+      <Text style={styles.label}>Father's Phone Number</Text>
+      <TextInput
+        style={styles.input}
+        keyboardType="phone-pad"
+        placeholder="Enter father's phone number"
+        value={details.father_number}
+        onChangeText={(text) => setDetails({ ...details, father_number: text })}
+      />
+
+      <Text style={styles.label}>Mother's Name</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter mother's name"
+        value={details.mother_name}
+        onChangeText={(text) => setDetails({ ...details, mother_name: text })}
+      />
+
+      <Text style={styles.label}>Mother's Phone Number</Text>
+      <TextInput
+        style={styles.input}
+        keyboardType="phone-pad"
+        placeholder="Enter mother's phone number"
+        value={details.mother_number}
+        onChangeText={(text) => setDetails({ ...details, mother_number: text })}
+      />
+
+      {/* ─── Buttons ─── */}
       <TouchableOpacity
-        style={[styles.saveBtn, saving && { backgroundColor: "#93c5fd" }]}
+        style={[styles.button, saving && { backgroundColor: "#93c5fd" }]}
+        onPress={handleSave}
         disabled={saving}
-        onPress={handleSubmit}
       >
-        <Text style={styles.saveText}>
-          {saving ? "Saving..." : "Save Details"}
+        <Text style={styles.buttonText}>
+          {saving
+            ? "Saving..."
+            : mode === "edit"
+            ? "Update Details"
+            : "Save Details"}
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-        <Text style={styles.cancelText}>← Back</Text>
+      <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+        <Text style={styles.backBtnText}>← Back to Student Profile</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-/* ✅ Reusable Input Field */
-const LabeledInput = ({ label, ...props }) => (
-  <View style={{ marginBottom: 12 }}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput style={styles.input} {...props} />
-  </View>
-);
-
 const styles = StyleSheet.create({
   page: { backgroundColor: "#f8fafc", flex: 1 },
-  header: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
-  subHeader: { fontSize: 16, color: "#475569", marginBottom: 15 },
-  formSection: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 16,
-    elevation: 2,
-    marginBottom: 20,
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0b5cff",
+    marginBottom: 16,
   },
-  label: { fontSize: 14, color: "#0f172a", fontWeight: "600", marginBottom: 4 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 4,
+    marginTop: 10,
+  },
   input: {
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 8,
     padding: 10,
-    backgroundColor: "#f9fafb",
+    backgroundColor: "#fff",
   },
-  sectionHeader: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2563eb",
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  saveBtn: {
-    backgroundColor: "#2563eb",
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  saveText: { color: "#fff", fontWeight: "700" },
-  cancelBtn: {
-    backgroundColor: "#e2e8f0",
+  button: {
+    backgroundColor: "#0b5cff",
     padding: 12,
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 18,
   },
-  cancelText: { color: "#0f172a", fontWeight: "700" },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  backBtn: {
+    marginTop: 15,
+    backgroundColor: "#64748b",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  backBtnText: { color: "#fff", fontWeight: "600" },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  radioGroup: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+
+  radioOption: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  radioCircle: {
+    height: 20,
+    width: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+
+  radioSelected: {
+    height: 10,
+    width: 10,
+    borderRadius: 5,
+    backgroundColor: "#2563eb",
+  },
+
+  radioText: {
+    fontSize: 15,
+    color: "#0f172a",
+    fontWeight: "500",
+  },
 });

@@ -1,3 +1,4 @@
+// frontend/app/student-dashboard.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -13,16 +14,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function StudentDashboard() {
   const router = useRouter();
-  const [studentName, setStudentName] = useState("");
+  const [studentName, setStudentName] = useState("Student");
   const [studentEmail, setStudentEmail] = useState("");
 
-  // 🧠 Load student info from localStorage or AsyncStorage
   useEffect(() => {
     const loadStudentInfo = async () => {
       try {
         let storedEmail = "";
         let storedName = "";
-
         if (Platform.OS === "web") {
           storedEmail = localStorage.getItem("email") || "";
           storedName = localStorage.getItem("name") || "";
@@ -30,18 +29,15 @@ export default function StudentDashboard() {
           storedEmail = (await AsyncStorage.getItem("email")) || "";
           storedName = (await AsyncStorage.getItem("name")) || "";
         }
-
         setStudentEmail(storedEmail);
-        setStudentName(storedName);
+        setStudentName(storedName || storedEmail || "Student");
       } catch (err) {
         console.error("Error loading student info:", err);
       }
     };
-
     loadStudentInfo();
   }, []);
 
-  // 🧩 Proper Logout Handler — clears all saved keys
   const handleLogout = async () => {
     try {
       if (Platform.OS === "web") {
@@ -59,27 +55,22 @@ export default function StudentDashboard() {
           "role",
         ]);
       }
-
-      Alert.alert("Logged Out", "You have been logged out successfully.");
-      router.replace("/"); // back to login
+      Alert.alert("Logged Out", "You have been logged out.");
+      router.replace("/");
     } catch (err) {
       console.error("Logout error:", err);
-      Alert.alert("Error", "Failed to logout properly");
+      Alert.alert("Error", "Failed to logout.");
     }
   };
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#0b5cff" barStyle="light-content" />
-
       <Text style={styles.title}>🎓 Student Dashboard</Text>
-      <Text style={styles.welcome}>
-        Welcome back, {studentName || "Student"}!
-      </Text>
-      <Text style={styles.email}>{studentEmail || "—"}</Text>
+      <Text style={styles.welcome}>Welcome back, {studentName}!</Text>
+      <Text style={styles.email}>{studentEmail}</Text>
 
       <View style={styles.cardContainer}>
-        {/* Profile Button */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/student/profile")}
@@ -88,7 +79,6 @@ export default function StudentDashboard() {
           <Text style={styles.cardText}>Profile</Text>
         </TouchableOpacity>
 
-        {/* Complaint Button */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/student/complaints")}
@@ -97,7 +87,6 @@ export default function StudentDashboard() {
           <Text style={styles.cardText}>Complaint Portal</Text>
         </TouchableOpacity>
 
-        {/* Attendance Button */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/student/attendance")}
@@ -107,7 +96,6 @@ export default function StudentDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Logout Button */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Logout</Text>
       </TouchableOpacity>
@@ -129,20 +117,9 @@ const styles = StyleSheet.create({
     color: "#0b5cff",
     marginBottom: 8,
   },
-  welcome: {
-    fontSize: 18,
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    color: "#64748b",
-    marginBottom: 25,
-  },
-  cardContainer: {
-    width: "100%",
-    alignItems: "center",
-  },
+  welcome: { fontSize: 18, color: "#1e293b", marginBottom: 4 },
+  email: { fontSize: 14, color: "#64748b", marginBottom: 25 },
+  cardContainer: { width: "100%", alignItems: "center" },
   card: {
     backgroundColor: "#ffffff",
     width: "90%",
@@ -155,15 +132,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
   },
-  icon: {
-    fontSize: 30,
-    marginBottom: 8,
-  },
-  cardText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
+  icon: { fontSize: 30, marginBottom: 8 },
+  cardText: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
   logoutBtn: {
     backgroundColor: "#ff4d4f",
     width: "80%",
@@ -173,9 +143,5 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 40,
   },
-  logoutText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  logoutText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

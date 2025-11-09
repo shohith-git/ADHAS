@@ -1,4 +1,4 @@
-// 📁 frontend/app/(tabs)/index.tsx
+// frontend/app/(tabs)/index.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -11,19 +11,16 @@ import {
 } from "react-native";
 import axios from "axios";
 import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons"; // 🆕 Added for password toggle
-import AsyncStorage from "@react-native-async-storage/async-storage"; // 🆕 Native storage
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ✅ Backend base URL (change if your IP changes)
 const BACKEND = "http://10.69.232.21:5000";
 
-// 🧠 Helper: unified alert for web & native
 function showAlert(title: string, message: string) {
   if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
   else Alert.alert(title, message);
 }
 
-// 📧 Simple email validation
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase());
 }
@@ -31,13 +28,10 @@ function isValidEmail(email: string) {
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 🆕 Added
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    console.log("[Login] button pressed", { email, password });
-
-    // 🧾 Step 1: basic validation
     if (!email.trim() || !password.trim()) {
       showAlert("Login Failed", "Please enter both email and password.");
       return;
@@ -52,13 +46,10 @@ export default function LoginScreen() {
 
     try {
       setLoading(true);
-
-      // 📨 Step 2: Send login request
-      const resp = await axios.post(
-        `${BACKEND}/api/auth/login`,
-        { email: email.trim(), password },
-        { timeout: 8000 }
-      );
+      const resp = await axios.post(`${BACKEND}/api/auth/login`, {
+        email: email.trim(),
+        password,
+      });
 
       const { token, user } = resp.data;
       if (!token || !user) {
@@ -66,38 +57,38 @@ export default function LoginScreen() {
         return;
       }
 
-      // 🆙 Step 3: Save JWT + user info
+      // save token + user details consistently
       if (Platform.OS === "web") {
         localStorage.setItem("token", token);
-        localStorage.setItem("user_id", user.id);
+        localStorage.setItem("user_id", String(user.id));
         localStorage.setItem("email", user.email);
+        localStorage.setItem("name", user.name || "");
         localStorage.setItem("role", user.role);
       } else {
         await AsyncStorage.setItem("token", token);
         await AsyncStorage.setItem("user_id", String(user.id));
         await AsyncStorage.setItem("email", user.email);
+        if (user.name) await AsyncStorage.setItem("name", user.name);
         await AsyncStorage.setItem("role", user.role);
       }
 
-      // 🆕 Clear login inputs
+      // clear fields after successful login
       setEmail("");
       setPassword("");
 
-      // 🧭 Step 4: Navigate by role
-      showAlert("Login Success", `Welcome ${user?.email || ""}`);
-      const role = user?.role;
-      if (role === "admin") router.replace("/admin-dashboard");
-      else if (role === "warden") router.replace("/warden-dashboard");
+      showAlert("Login Success", `Welcome ${user.email}`);
+      if (user.role === "admin") router.replace("/admin-dashboard");
+      else if (user.role === "warden") router.replace("/warden-dashboard");
       else router.replace("/student-dashboard");
     } catch (err: any) {
       console.error("[Login] error", err);
       if (err?.response)
         showAlert(
           "Invalid Credentials",
-          err.response.data?.message || `Server error (${err.response.status})`
+          err.response.data?.message || "Invalid login"
         );
       else if (err?.request)
-        showAlert("Connection Error", "Unable to reach backend server.");
+        showAlert("Connection Error", "Unable to reach backend.");
       else showAlert("Error", err.message || "Unexpected error occurred.");
     } finally {
       setLoading(false);
@@ -109,7 +100,6 @@ export default function LoginScreen() {
       <Text style={styles.logo}>CIT_NC</Text>
       <Text style={styles.title}>Hostel Portal — Login</Text>
 
-      {/* Email input */}
       <TextInput
         style={styles.input}
         placeholder="College Email"
@@ -120,7 +110,6 @@ export default function LoginScreen() {
         onChangeText={setEmail}
       />
 
-      {/* 🆕 Password input with eye icon */}
       <View style={styles.passwordContainer}>
         <TextInput
           style={[styles.input, { flex: 1, borderWidth: 0 }]}
@@ -131,7 +120,7 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
         <TouchableOpacity
-          onPress={() => setShowPassword(!showPassword)}
+          onPress={() => setShowPassword((s) => !s)}
           style={styles.eyeIcon}
         >
           <Ionicons
@@ -142,7 +131,6 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Login Button */}
       <TouchableOpacity
         style={[styles.button, loading && { backgroundColor: "#9ca3af" }]}
         onPress={handleLogin}
@@ -168,12 +156,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#ffffff",
   },
-  logo: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2563eb",
-    marginBottom: 6,
-  },
+  logo: { fontSize: 18, fontWeight: "700", color: "#2563eb", marginBottom: 6 },
   title: {
     fontSize: 22,
     fontWeight: "700",

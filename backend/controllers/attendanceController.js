@@ -28,9 +28,11 @@ exports.markAttendance = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO attendance (student_id, date, time, method, location)
-      VALUES ($1, CURRENT_DATE, CURRENT_TIME, $2, $3)
-      RETURNING *;
+     INSERT INTO attendance (student_id, date, time, method, location)
+VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE, 
+        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::TIME, $2, $3)
+RETURNING *;
+
     `;
     const values = [student_id, method, location];
     console.log("🧠 Executing query:", query, values);

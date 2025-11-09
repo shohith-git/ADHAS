@@ -1,5 +1,3 @@
-// adhas/frontend/screens/warden/complaints.jsx
-
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,24 +7,22 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import axios from "axios";
-import { Picker } from "@react-native-picker/picker"; // ensure installed
+import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
 import { router } from "expo-router";
 
 export default function WardenComplaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
 
-  // ✅ Backend base URL
   const BACKEND = "http://10.69.232.21:5000";
-
-  // ✅ Temporary warden JWT token for testing
   const token =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Miwicm9sZSI6IndhcmRlbiIsImNvbGxlZ2UiOiJjaXRfbmMuZWR1LmluIiwiaWF0IjoxNzYxOTkzOTMxLCJleHAiOjE3NjIwMTU1MzF9.1RBDfdOovVsv6t_r3QOWZnB-dg-OYWQGF7Ph45vdOk0";
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // 🟢 Fetch all complaints
   const fetchComplaints = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/complaints`, {
@@ -34,8 +30,8 @@ export default function WardenComplaints() {
       });
       setComplaints(res.data);
     } catch (err) {
-      console.error("Error fetching complaints:", err);
-      setError("Failed to load complaints. Please try again later.");
+      console.error("❌ Error fetching complaints:", err.response?.data || err);
+      Alert.alert("Error", "Failed to load complaints.");
     } finally {
       setLoading(false);
     }
@@ -45,7 +41,6 @@ export default function WardenComplaints() {
     fetchComplaints();
   }, []);
 
-  // 🟠 Update complaint status
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
@@ -58,145 +53,232 @@ export default function WardenComplaints() {
           },
         }
       );
-      Alert.alert("✅ Success", `Status updated to "${newStatus}"`);
-      fetchComplaints(); // Refresh after update
+      Alert.alert("✅ Updated", `Status changed to "${newStatus}"`);
+      fetchComplaints();
     } catch (err) {
-      console.error("Error updating status:", err.response?.data || err);
-      Alert.alert("❌ Error", "Failed to update complaint status");
+      console.error("❌ Error updating complaint status:", err);
+      Alert.alert("Error", "Failed to update status");
     }
   };
 
-  // 🟡 Status color helper
-  const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
+  const getStatusStyle = (status) => {
+    switch (status?.toLowerCase()) {
       case "resolved":
         return { backgroundColor: "#bbf7d0", color: "#065f46" };
       case "in-progress":
       case "in progress":
         return { backgroundColor: "#fde68a", color: "#92400e" };
-      default:
+      case "denied":
         return { backgroundColor: "#fecaca", color: "#991b1b" };
+      default:
+        return { backgroundColor: "#fef9c3", color: "#854d0e" };
     }
   };
 
-  // 🧭 Loading state
   if (loading)
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#0b5cff" />
-        <Text style={{ marginTop: 10 }}>Loading complaints...</Text>
+        <Text>Loading complaints...</Text>
       </View>
     );
 
-  // ❌ Error state
-  if (error)
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: "red" }}>{error}</Text>
-      </View>
-    );
-
-  // 🧾 UI Layout
   return (
-    <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.title}>📋 Complaints (Warden View)</Text>
+    <View style={styles.page}>
+      <Text style={styles.title}>📋 Student Complaints</Text>
 
-      {complaints.length === 0 ? (
-        <Text style={{ color: "#64748b" }}>No complaints available.</Text>
-      ) : (
-        complaints.map((c) => {
-          const style = getStatusColor(c.status || "pending");
-          return (
-            <View key={c.id} style={styles.card}>
-              <Text style={styles.cardTitle}>{c.title}</Text>
-              <Text style={styles.meta}>User ID: {c.user_id}</Text>
-              <Text style={styles.desc}>{c.description}</Text>
-
-              <View style={styles.statusRow}>
-                <Text
+      <ScrollView contentContainerStyle={styles.grid}>
+        {complaints.length === 0 ? (
+          <Text style={{ color: "#64748b", marginTop: 20 }}>
+            No complaints available.
+          </Text>
+        ) : (
+          complaints.map((c) => {
+            const style = getStatusStyle(c.status || "pending");
+            return (
+              <TouchableOpacity
+                key={c.id}
+                style={styles.card}
+                activeOpacity={0.8}
+                onPress={() => setSelectedComplaint(c)}
+              >
+                <Text style={styles.name}>{c.student_name}</Text>
+                <Text style={styles.meta}>📧 {c.email}</Text>
+                <Text style={styles.meta}>
+                  🏠 Room: {c.room_no || "N/A"} | {c.dept_branch || "Dept"}
+                </Text>
+                <Text style={styles.meta}>
+                  🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
+                </Text>
+                <View
                   style={[
-                    styles.statusText,
-                    {
-                      backgroundColor: style.backgroundColor,
-                      color: style.color,
-                    },
+                    styles.statusBadge,
+                    { backgroundColor: style.backgroundColor },
                   ]}
                 >
-                  {c.status?.toUpperCase()}
-                </Text>
+                  <Text style={[styles.statusText, { color: style.color }]}>
+                    {c.status?.toUpperCase()}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
 
+      {/* Modal for complaint details */}
+      {selectedComplaint && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSelectedComplaint(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>{selectedComplaint.title}</Text>
+              <Text style={styles.modalMeta}>
+                👤 {selectedComplaint.student_name} | Room:{" "}
+                {selectedComplaint.room_no || "N/A"}
+              </Text>
+              <Text style={styles.modalMeta}>📧 {selectedComplaint.email}</Text>
+              <Text style={styles.modalDesc}>
+                {selectedComplaint.description}
+              </Text>
+
+              <View style={styles.modalStatusRow}>
+                <Text style={styles.modalLabel}>Change Status:</Text>
                 <Picker
-                  selectedValue={c.status}
+                  selectedValue={selectedComplaint.status}
                   style={styles.picker}
-                  onValueChange={(newStatus) => updateStatus(c.id, newStatus)}
+                  onValueChange={(newStatus) => {
+                    updateStatus(selectedComplaint.id, newStatus);
+                    setSelectedComplaint({
+                      ...selectedComplaint,
+                      status: newStatus,
+                    });
+                  }}
                 >
                   <Picker.Item label="Pending" value="pending" />
                   <Picker.Item label="In Progress" value="in-progress" />
                   <Picker.Item label="Resolved" value="resolved" />
+                  <Picker.Item label="Denied ❌" value="denied" />
                 </Picker>
               </View>
+
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setSelectedComplaint(null)}
+              >
+                <Ionicons name="close" size={20} color="#fff" />
+                <Text style={styles.closeText}>Close</Text>
+              </TouchableOpacity>
             </View>
-          );
-        })
+          </View>
+        </Modal>
       )}
 
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => router.push("/warden-dashboard")}
+      >
         <Text style={styles.backBtnText}>← Back to Dashboard</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f8fafc", flex: 1 },
+  page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 16,
+    color: "#0b5cff",
+    marginBottom: 15,
   },
-  card: {
-    backgroundColor: "#fff",
-    padding: 14,
-    marginBottom: 14,
-    borderRadius: 10,
-    shadowColor: "#00000011",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-  },
-  cardTitle: { fontWeight: "700", fontSize: 16, color: "#0f172a" },
-  meta: { color: "#64748b", fontSize: 13, marginVertical: 4 },
-  desc: { color: "#334155", fontSize: 14, marginBottom: 10 },
-  statusRow: {
+
+  grid: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  statusText: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  picker: {
-    height: 35,
-    width: 140,
+
+  card: {
+    width: "31%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 15,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#e2e8f0",
+    elevation: 3,
   },
-  backBtn: {
-    marginTop: 20,
-    backgroundColor: "#0b5cff",
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
+  name: { fontWeight: "700", fontSize: 16, color: "#0f172a" },
+  meta: { fontSize: 13, color: "#475569", marginVertical: 2 },
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginTop: 6,
   },
-  backBtnText: { color: "#fff", fontWeight: "700" },
-  center: {
+  statusText: { fontWeight: "700", fontSize: 12 },
+
+  modalOverlay: {
     flex: 1,
+    backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 60,
   },
+  modalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: "85%",
+    padding: 20,
+    elevation: 6,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  modalMeta: { color: "#475569", fontSize: 13, marginVertical: 2 },
+  modalDesc: {
+    color: "#334155",
+    fontSize: 14,
+    marginVertical: 10,
+    lineHeight: 20,
+  },
+  modalStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    justifyContent: "space-between",
+  },
+  modalLabel: { fontWeight: "600", color: "#1e293b", fontSize: 14 },
+  picker: { height: 40, width: 160 },
+  closeBtn: {
+    flexDirection: "row",
+    backgroundColor: "#0b5cff",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    marginTop: 15,
+  },
+  closeText: {
+    color: "#fff",
+    fontWeight: "700",
+    marginLeft: 5,
+  },
+  backBtn: {
+    backgroundColor: "#0b5cff",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  backBtnText: { color: "#fff", fontWeight: "700" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });
