@@ -1,11 +1,10 @@
-// 📁 middleware/authMiddleware.js
+// backend/middleware/authMiddleware.js
 const jwt = require("jsonwebtoken");
-const pool = require("../db"); // ✅ PostgreSQL connection
+const pool = require("../db"); // PostgreSQL connection
 
-// 🔹 Authenticate JWT Token
+// Authenticate JWT Token
 const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "No token, authorization denied" });
   }
@@ -13,10 +12,8 @@ const authMiddleware = async (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    // ✅ Verify token using .env secret key
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ✅ Fetch user from PostgreSQL using decoded ID
     const userResult = await pool.query(
       "SELECT id, email, role FROM users WHERE id = $1",
       [decoded.id]
@@ -26,7 +23,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid token user" });
     }
 
-    req.user = userResult.rows[0]; // attach user to req
+    req.user = userResult.rows[0];
     next();
   } catch (err) {
     console.error("JWT verification error:", err);
@@ -34,7 +31,7 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// 🔹 Allow only Admins
+// Allow only Admins
 const isAdmin = (req, res, next) => {
   if (req.user?.role !== "admin") {
     return res.status(403).json({ message: "Access denied: Admins only" });
@@ -42,7 +39,7 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// 🔹 Allow only Wardens (or Admins)
+// Allow only Wardens (or Admins)
 const isWarden = (req, res, next) => {
   if (req.user?.role === "warden" || req.user?.role === "admin") {
     next();
@@ -51,7 +48,16 @@ const isWarden = (req, res, next) => {
   }
 };
 
-// 🔹 Allow roles dynamically (optional helper)
+// Allow only Students (or Admins) — NEW
+const isStudent = (req, res, next) => {
+  if (req.user?.role === "student" || req.user?.role === "admin") {
+    next();
+  } else {
+    return res.status(403).json({ message: "Access denied: Student only" });
+  }
+};
+
+// Allow roles dynamically (optional helper)
 const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!allowedRoles.includes(req.user.role)) {
@@ -65,5 +71,6 @@ module.exports = {
   authMiddleware,
   isAdmin,
   isWarden,
+  isStudent,
   authorizeRoles,
 };

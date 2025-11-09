@@ -17,11 +17,13 @@ import {
   History,
   CalendarCheck2,
   LogOut,
-} from "lucide-react";
+  UserRound,
+} from "lucide-react"; // ✅ added icon for Student Profile
 
 export default function WardenDashboard() {
   const router = useRouter();
 
+  // 🔒 Logout handler
   const handleLogout = async () => {
     try {
       // Remove token from both storages
@@ -61,18 +63,32 @@ export default function WardenDashboard() {
       style={styles.container}
       contentContainerStyle={{ padding: 20 }}
     >
+      {/* Header */}
       <Text style={styles.header}>🏫 Warden Dashboard</Text>
       <Text style={styles.subHeader}>Manage hostel operations efficiently</Text>
 
+      {/* Functional Cards */}
       <View style={styles.grid}>
         {/* 👨‍🎓 Student Management */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => router.push("/warden/students")}
+          onPress={() => router.push("/warden/student-management")}
         >
           <BookUser size={36} color="#2563eb" />
           <Text style={styles.cardTitle}>Student Management</Text>
           <Text style={styles.cardDesc}>Register, view or remove students</Text>
+        </TouchableOpacity>
+
+        {/* 🧍‍♂️ Student Profile */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push("/warden/student-profile")}
+        >
+          <UserRound size={36} color="#0284c7" />
+          <Text style={styles.cardTitle}>Student Profile</Text>
+          <Text style={styles.cardDesc}>
+            Add or edit student profile details
+          </Text>
         </TouchableOpacity>
 
         {/* 🏢 Room Management */}
@@ -117,9 +133,11 @@ export default function WardenDashboard() {
       </View>
 
       {/* 🚪 Logout Button */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <LogOut size={22} color="#fff" />
-        <Text style={styles.logoutText}>Logout</Text>
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={() => router.push("/")}
+      >
+        <Text style={styles.logoutText}>🚪 Logout</Text>
       </TouchableOpacity>
     </ScrollView>
   );
