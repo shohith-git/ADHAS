@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -14,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { router } from "expo-router";
 
-export default function WardenComplaints() {
+export default function Complaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -23,6 +22,7 @@ export default function WardenComplaints() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+  // ✅ Fetch complaints
   const fetchComplaints = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/complaints`, {
@@ -41,6 +41,7 @@ export default function WardenComplaints() {
     fetchComplaints();
   }, []);
 
+  // ✅ Update complaint status
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
@@ -61,6 +62,7 @@ export default function WardenComplaints() {
     }
   };
 
+  // ✅ Status color helper
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
       case "resolved":
@@ -87,7 +89,8 @@ export default function WardenComplaints() {
     <View style={styles.page}>
       <Text style={styles.title}>📋 Student Complaints</Text>
 
-      <ScrollView contentContainerStyle={styles.grid}>
+      {/* ✅ Grid of complaints (unchanged layout) */}
+      <View style={styles.grid}>
         {complaints.length === 0 ? (
           <Text style={{ color: "#64748b", marginTop: 20 }}>
             No complaints available.
@@ -95,6 +98,24 @@ export default function WardenComplaints() {
         ) : (
           complaints.map((c) => {
             const style = getStatusStyle(c.status || "pending");
+
+            // formatted dates
+            const createdOn = c.created_at
+              ? new Date(c.created_at).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "—";
+
+            const updatedOn = c.updated_at
+              ? new Date(c.updated_at).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "—";
+
             return (
               <TouchableOpacity
                 key={c.id}
@@ -110,6 +131,18 @@ export default function WardenComplaints() {
                 <Text style={styles.meta}>
                   🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
                 </Text>
+
+                {/* 🕒 Complaint Raised and Last Updated */}
+                <View style={styles.dateRow}>
+                  <Ionicons name="time-outline" size={13} color="#475569" />
+                  <Text style={styles.dateText}>Raised: {createdOn}</Text>
+                </View>
+                <View style={styles.dateRow}>
+                  <Ionicons name="refresh-outline" size={13} color="#475569" />
+                  <Text style={styles.dateText}>Updated: {updatedOn}</Text>
+                </View>
+
+                {/* Status badge */}
                 <View
                   style={[
                     styles.statusBadge,
@@ -124,9 +157,9 @@ export default function WardenComplaints() {
             );
           })
         )}
-      </ScrollView>
+      </View>
 
-      {/* Modal for complaint details */}
+      {/* ✅ Complaint detail modal (unchanged) */}
       {selectedComplaint && (
         <Modal
           visible={true}
@@ -196,13 +229,11 @@ const styles = StyleSheet.create({
     color: "#0b5cff",
     marginBottom: 15,
   },
-
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-
   card: {
     width: "31%",
     backgroundColor: "#fff",
@@ -215,6 +246,16 @@ const styles = StyleSheet.create({
   },
   name: { fontWeight: "700", fontSize: 16, color: "#0f172a" },
   meta: { fontSize: 13, color: "#475569", marginVertical: 2 },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+  },
+  dateText: {
+    fontSize: 12,
+    color: "#475569",
+    marginLeft: 5,
+  },
   statusBadge: {
     alignSelf: "flex-start",
     paddingVertical: 4,
@@ -223,7 +264,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   statusText: { fontWeight: "700", fontSize: 12 },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",

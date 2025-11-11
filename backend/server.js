@@ -19,6 +19,7 @@ const complaintRoutes = require("./routes/complaintRoutes");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const profileRoutes = require("./routes/profileRoutes");
+const remarkRoutes = require("./routes/remarkRoutes");
 
 // 🛠️ Route mapping
 app.use("/api/users", userRoutes);
@@ -29,6 +30,7 @@ app.use("/api/complaints", complaintRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/remarks", remarkRoutes);
 
 // 🧪 Health Check
 app.get("/", (req, res) => {

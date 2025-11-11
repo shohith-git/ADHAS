@@ -15,7 +15,10 @@ router.post("/", authMiddleware, addComplaint);
 // 👨‍🏫 Warden views all complaints
 router.get("/", authMiddleware, isWarden, getAllComplaints);
 
-// 🧍‍♂️ Student views their own complaints
+// ✅ Student or warden views complaints for a specific student
+router.get("/student/:id", authMiddleware, getComplaintsByStudent);
+
+// 🧍‍♂️ Student views their own complaints (legacy route, still works)
 router.get("/:studentId", authMiddleware, getComplaintsByStudent);
 
 // 🔄 Update status (Warden)

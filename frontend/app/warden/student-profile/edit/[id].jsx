@@ -11,6 +11,7 @@ import {
 import axios from "axios";
 import Swal from "sweetalert2";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function WardenStudentDetails({ mode = "add" }) {
   // mode: "add" or "edit"
@@ -66,15 +67,17 @@ export default function WardenStudentDetails({ mode = "add" }) {
 
   // Save or Update student
   const handleSave = async () => {
-    if (!details.usn || !details.room_no)
+    if (!details.usn || !details.room_no) {
       return Swal.fire(
         "⚠️ Missing Info",
         "USN and Room No are required",
         "warning"
       );
+    }
 
     try {
       setSaving(true);
+
       const res = await axios.put(
         `${BACKEND}/api/students/${studentId}/details`,
         details,
@@ -87,7 +90,9 @@ export default function WardenStudentDetails({ mode = "add" }) {
       );
 
       Swal.fire("✅ Success", res.data.message, "success");
-      router.push("/warden/student-profile");
+
+      // ✅ Correct dynamic route
+      router.push(`/warden/student-profile/${studentId}`);
     } catch (err) {
       Swal.fire(
         "❌ Error",
@@ -99,7 +104,10 @@ export default function WardenStudentDetails({ mode = "add" }) {
     }
   };
 
-  const handleBack = () => router.push("/warden/student-profile");
+  const handleBack = () => {
+    console.log("Navigating back to:", id);
+    router.push(`/warden/student-profile/${id}`);
+  };
 
   if (loading)
     return (
@@ -270,7 +278,8 @@ export default function WardenStudentDetails({ mode = "add" }) {
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-        <Text style={styles.backBtnText}>← Back to Student Profile</Text>
+        <Ionicons name="arrow-back" size={18} color="#fff" />
+        <Text style={styles.backText}>Back to Profile</Text>
       </TouchableOpacity>
     </ScrollView>
   );
