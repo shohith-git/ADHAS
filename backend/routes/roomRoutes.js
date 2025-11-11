@@ -33,8 +33,8 @@ router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
 
     const values = [];
     for (let i = start; i <= end; i++) {
-      values.push([`E${i}`, floor, "East", eastSharing, 0]);
-      values.push([`W${i}`, floor, "West", westSharing, 0]);
+      values.push([`E${i}`, parseInt(floor), "East", parseInt(eastSharing), 0]);
+      values.push([`W${i}`, parseInt(floor), "West", parseInt(westSharing), 0]);
     }
 
     // ✅ allow same room_number across different floors/sides
@@ -78,7 +78,13 @@ router.post("/", authMiddleware, isWarden, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (room_number, floor, side) DO NOTHING
        RETURNING *`,
-      [room_number, floor, side, sharing, occupied || 0]
+      [
+        room_number,
+        parseInt(floor),
+        side,
+        parseInt(sharing),
+        parseInt(occupied || 0),
+      ]
     );
 
     if (result.rows.length === 0) {

@@ -38,16 +38,30 @@ exports.addComplaint = async (req, res) => {
   }
 };
 
-// 🟣 Warden/Admin view all complaints with student name, email, and room
+// 🟣 Warden/Admin view all complaints with student name, email, room, dept, year, usn
 exports.getAllComplaints = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.id, c.title, c.description, c.status, c.room_no, c.created_at,
-              u.id as user_id, u.name AS student_name, u.email
+      `SELECT 
+          c.id,
+          c.title,
+          c.description,
+          c.status,
+          c.room_no,
+          c.created_at,
+          c.updated_at,
+          u.id AS user_id,
+          u.name AS student_name,
+          u.email,
+          sp.dept_branch,
+          sp.year,
+          sp.usn
        FROM complaints c
        LEFT JOIN users u ON u.id = c.student_id
+       LEFT JOIN student_profiles sp ON sp.user_id = c.student_id
        ORDER BY c.created_at DESC`
     );
+
     res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching complaints:", err.message);
@@ -58,11 +72,21 @@ exports.getAllComplaints = async (req, res) => {
 // 🔵 Fetch complaints for a specific student
 exports.getComplaintsByStudent = async (req, res) => {
   try {
-    const { studentId } = req.params;
+    // Works for both /:studentId and /student/:id
+    const studentId = req.params.id || req.params.studentId;
+
+    if (!studentId || isNaN(Number(studentId))) {
+      return res.status(400).json({ message: "Invalid student ID" });
+    }
+
     const result = await pool.query(
-      `SELECT * FROM complaints WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT id, title, description, status, room_no, created_at, updated_at
+       FROM complaints
+       WHERE student_id = $1
+       ORDER BY created_at DESC`,
       [studentId]
     );
+
     res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching student complaints:", err.message);
@@ -76,7 +100,6 @@ exports.updateComplaintStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    // ✅ Allow only specific statuses
     const allowedStatuses = ["pending", "in-progress", "resolved", "denied"];
     if (!allowedStatuses.includes(status.toLowerCase())) {
       return res.status(400).json({
@@ -86,17 +109,22 @@ exports.updateComplaintStatus = async (req, res) => {
       });
     }
 
+    // ✅ ensure updated_at is refreshed on every change
     const result = await pool.query(
       `UPDATE complaints
-       SET status = $1, updated_at = NOW()
+         SET status = $1,
+             updated_at = NOW()
        WHERE id = $2
-       RETURNING *`,
+       RETURNING id, title, status, created_at, updated_at`,
       [status, id]
     );
 
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0)
       return res.status(404).json({ message: "Complaint not found" });
-    }
+
+    console.log(
+      `✅ Complaint ${id} status changed to '${status}', updated_at refreshed.`
+    );
 
     res.status(200).json({
       message: `Complaint marked as '${status}' successfully`,

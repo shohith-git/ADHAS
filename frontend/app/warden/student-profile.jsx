@@ -4,36 +4,56 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Image,
   ActivityIndicator,
   StyleSheet,
-  Alert,
   TextInput,
+  Dimensions,
 } from "react-native";
-import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import axios from "axios";
+import { useRouter } from "expo-router";
 
-export default function StudentProfileList() {
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = (width - 50) / 2; // two cards per row
+
+export default function StudentProfileGrid() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const { refresh } = useLocalSearchParams();
 
+  const router = useRouter();
   const BACKEND = "http://10.69.232.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  const router = useRouter();
-
-  // ✅ Fetch all students
+  // ✅ Fetch students
   const fetchStudents = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/students`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setStudents(res.data);
+      const data = res.data || [];
+
+      // Sort: E-block → W-block → Unallocated
+      const sorted = data.sort((a, b) => {
+        const ra = a.room_no || "";
+        const rb = b.room_no || "";
+        if (!ra) return 1;
+        if (!rb) return -1;
+
+        const blockA = ra[0].toUpperCase();
+        const blockB = rb[0].toUpperCase();
+        if (blockA !== blockB) return blockA.localeCompare(blockB);
+
+        const numA = parseInt(ra.slice(1)) || 0;
+        const numB = parseInt(rb.slice(1)) || 0;
+        return numA - numB;
+      });
+
+      setStudents(sorted);
     } catch (err) {
-      console.error("Error fetching students:", err.message);
+      console.error("❌ Error fetching students:", err.message);
     } finally {
       setLoading(false);
     }
@@ -43,41 +63,22 @@ export default function StudentProfileList() {
     fetchStudents();
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = router?.addListener?.("focus", fetchStudents);
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (refresh) {
-      Alert.alert("✅ Updated", "Student profile saved successfully");
-    }
-  }, [refresh]);
-
-  // 🔍 Filter students based on search
-  const filteredStudents = students.filter((s) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      s.name?.toLowerCase().includes(q) ||
-      s.usn?.toLowerCase().includes(q) ||
-      s.room_no?.toLowerCase().includes(q)
-    );
-  });
-
-  // 🧠 Split lists dynamically
-  const newStudents = filteredStudents.filter((s) => !s.dept_branch);
-  const existingStudents = filteredStudents.filter((s) => s.dept_branch);
+  const getAccent = (room) => {
+    if (!room) return "#94a3b8"; // grey for unallocated
+    const block = room[0].toUpperCase();
+    return block === "E" ? "#3b82f6" : "#10b981"; // blue for East, green for West
+  };
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
+    <ScrollView style={styles.page} contentContainerStyle={{ padding: 15 }}>
       <Text style={styles.pageTitle}>🎓 Student Profiles</Text>
 
-      {/* 🔍 Search Bar */}
-      <View style={[styles.searchContainer, styles.shadowCard]}>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
         <Ionicons name="search-outline" size={20} color="#475569" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by Name, USN, or Room Number..."
+          placeholder="Search by Name, USN, Email, or Room Number..."
           placeholderTextColor="#94a3b8"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -89,91 +90,86 @@ export default function StudentProfileList() {
         )}
       </View>
 
+      {/* Grid */}
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#2563eb" />
           <Text style={styles.loadingText}>Loading profiles...</Text>
         </View>
+      ) : students.length === 0 ? (
+        <Text style={styles.emptyText}>No students found.</Text>
       ) : (
-        <>
-          {/* 🆕 Fresh Students */}
-          <View style={[styles.sectionCard, styles.shadowCard]}>
-            <Text style={styles.sectionHeader}>🆕 Fresh Students</Text>
-            {newStudents.length === 0 ? (
-              <Text style={styles.emptyText}>No fresh students found.</Text>
-            ) : (
-              newStudents.map((s) => (
-                <View key={s.id} style={styles.studentCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{s.name}</Text>
-                    <Text style={styles.email}>{s.email}</Text>
-                    {s.usn && <Text style={styles.metaText}>USN: {s.usn}</Text>}
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.greenBtn]}
-                    onPress={() =>
-                      router.push({
-                        pathname: `/warden/student-profile/add/${s.id}`,
-                        params: { from: "fresh" },
-                      })
-                    }
-                  >
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.btnText}>Add Details</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-          </View>
+        <View style={styles.grid}>
+          {students
+            .filter((s) => {
+              const q = searchQuery.toLowerCase();
+              return (
+                s.name?.toLowerCase().includes(q) ||
+                s.usn?.toLowerCase().includes(q) ||
+                s.email?.toLowerCase().includes(q) ||
+                s.room_no?.toLowerCase().includes(q) ||
+                s.dept_branch?.toLowerCase().includes(q)
+              );
+            })
+            .map((s) => {
+              const accent = getAccent(s.room_no);
+              return (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.card, { borderTopColor: accent }]}
+                  onPress={() => router.push(`/warden/student-profile/${s.id}`)}
+                >
+                  {/* Header Accent */}
+                  <View
+                    style={[styles.cardHeader, { backgroundColor: accent }]}
+                  />
 
-          {/* 👩‍🎓 Existing Students */}
-          <View style={[styles.sectionCard, styles.shadowCard]}>
-            <Text style={styles.sectionHeader}>👩‍🎓 Existing Students</Text>
-            {existingStudents.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No existing student profiles found.
-              </Text>
-            ) : (
-              existingStudents.map((s) => (
-                <View key={s.id} style={styles.studentCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{s.name}</Text>
-                    <Text style={styles.email}>{s.email}</Text>
-                    {s.dept_branch && (
-                      <Text style={styles.metaText}>
-                        {s.dept_branch} • Room: {s.room_no || "N/A"}
-                      </Text>
-                    )}
+                  {/* Profile Picture */}
+                  {s.profile_photo ? (
+                    <Image
+                      source={{ uri: s.profile_photo }}
+                      style={styles.avatar}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.avatarPlaceholder,
+                        { backgroundColor: accent + "20" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person-outline"
+                        size={40}
+                        color={accent}
+                      />
+                    </View>
+                  )}
+
+                  {/* Info */}
+                  <Text style={styles.name}>{s.name}</Text>
+                  <Text style={styles.meta}>USN: {s.usn || "N/A"}</Text>
+                  <Text style={styles.meta}>Email: {s.email || "N/A"}</Text>
+                  <Text style={styles.meta}>
+                    Dept: {s.dept_branch || "N/A"}
+                  </Text>
+                  <View style={[styles.roomBadge, { backgroundColor: accent }]}>
+                    <Text style={styles.roomText}>
+                      {s.room_no ? s.room_no : "Unallocated"}
+                    </Text>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.blueBtn]}
-                    onPress={() =>
-                      router.push({
-                        pathname: `/warden/student-profile/edit/${s.id}`,
-                        params: { from: "existing" },
-                      })
-                    }
-                  >
-                    <Ionicons name="create-outline" size={20} color="#fff" />
-                    <Text style={styles.btnText}>Edit Profile</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-          </View>
-        </>
+                </TouchableOpacity>
+              );
+            })}
+        </View>
       )}
 
-      {/* 🔙 Back Button */}
+      {/* ✅ Back to Dashboard Button */}
       <TouchableOpacity
-        style={styles.backBtn}
+        style={styles.dashboardBtn}
         onPress={() => router.push("/warden-dashboard")}
       >
-        <Text style={styles.backText}>← Back to Dashboard</Text>
+        <Ionicons name="home-outline" size={18} color="#fff" />
+        <Text style={styles.dashboardText}>Go to Dashboard</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -186,12 +182,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: "#0b5cff",
-    marginBottom: 20,
+    marginBottom: 18,
+    marginLeft: 5,
   },
   centered: { alignItems: "center", marginVertical: 40 },
   loadingText: { marginTop: 8, color: "#64748b", fontSize: 14 },
 
-  /* 🔍 Search Bar */
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -202,6 +198,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
@@ -210,87 +211,93 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  /* 🌟 Section Containers */
-  sectionCard: {
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  card: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 18,
+    width: CARD_WIDTH,
     marginBottom: 20,
-  },
-  shadowCard: {
-    shadowColor: "#0f172a",
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderTopWidth: 4,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    paddingBottom: 6,
-  },
-
-  /* 👩‍🎓 Student Cards */
-  studentCard: {
-    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f1f5f9",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
   },
-  name: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
-  email: { color: "#475569", marginVertical: 2 },
-  metaText: { color: "#334155", fontSize: 13, fontWeight: "500" },
+  cardHeader: {
+    width: "100%",
+    height: 4,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  avatar: {
+    width: 65,
+    height: 65,
+    borderRadius: 33,
+    marginBottom: 6,
+  },
+  avatarPlaceholder: {
+    width: 65,
+    height: 65,
+    borderRadius: 33,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  name: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    textAlign: "center",
+  },
+  meta: {
+    fontSize: 12,
+    color: "#475569",
+    textAlign: "center",
+  },
+  roomBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  roomText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  emptyText: {
+    textAlign: "center",
+    color: "#94a3b8",
+    marginTop: 40,
+    fontSize: 15,
+  },
 
-  /* 🎯 Buttons */
-  actionBtn: {
+  /* ✅ Dashboard Button */
+  dashboardBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    minWidth: 120,
-    shadowColor: "#1e40af",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  btnText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  blueBtn: { backgroundColor: "#2563eb" },
-  greenBtn: { backgroundColor: "#10b981" },
-
-  /* Empty Text */
-  emptyText: {
-    color: "#64748b",
-    fontSize: 14,
-    textAlign: "center",
-    marginVertical: 8,
-  },
-
-  /* 🔙 Back Button */
-  backBtn: {
-    marginTop: 25,
     backgroundColor: "#0b5cff",
-    paddingVertical: 12,
     borderRadius: 10,
-    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 10,
+    marginBottom: 20,
     elevation: 3,
   },
-  backText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  dashboardText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+    marginLeft: 6,
+  },
 });

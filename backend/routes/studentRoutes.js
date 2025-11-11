@@ -1,4 +1,3 @@
-// backend/routes/studentRoutes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -45,7 +44,7 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🧾 Get all past students (must come BEFORE /:id)
+   🧾 Get all past students
 ===================================================== */
 router.get("/past", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -79,20 +78,23 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-          u.id,
-          u.name,
-          u.email,
-          u.role,
-          u.created_at,
+          u.id AS id,
+          u.name AS name,
+          u.email AS email,
+          u.role AS role,
+          u.created_at AS created_at,
+          sp.usn,
           sp.dept_branch,
           sp.year,
           sp.batch,
-          sp.room_no
+          sp.room_no,
+          sp.profile_photo
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.role = 'student'
        ORDER BY u.created_at DESC`
     );
+    console.log(`✅ Active students fetched: ${result.rows.length}`);
     res.json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching students:", err);
@@ -101,7 +103,7 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🧍 Get single student (with profile info)
+   🧍 Get single student (with full profile info)
 ===================================================== */
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
@@ -117,11 +119,28 @@ router.get("/:id", authMiddleware, async (req, res) => {
     }
 
     const student = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role,
-              sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no,
-              sp.gender, sp.dob, sp.phone_number, sp.address,
-              sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
-              sp.profile_photo
+      `SELECT 
+          u.id,
+          u.name,
+          u.email,
+          u.role,
+          sp.usn,
+          sp.dept_branch,
+          sp.year,
+          sp.batch,
+          sp.room_no,
+          sp.phone_number,
+          sp.gender,
+          sp.dob,
+          sp.address,
+          sp.father_name,
+          sp.father_number,
+          sp.mother_name,
+          sp.mother_number,
+          sp.profile_photo,
+          sp.warden_remarks,
+          sp.created_at,
+          sp.updated_at
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'student'`,
@@ -131,6 +150,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
+    console.log(`✅ Student fetched for ID ${id}`);
     res.json(student.rows[0]);
   } catch (err) {
     console.error("❌ Error fetching student:", err);
@@ -228,6 +248,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       console.log(`✅ Inserted profile for user_id=${id}`);
     }
 
+    // ✅ Update room stats safely
     if (room_no) {
       const prevRoom =
         existing.rows.length > 0 ? existing.rows[0].room_no : null;
@@ -235,10 +256,15 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       if (prevRoom && prevRoom !== room_no) {
         await client.query(
           `UPDATE rooms
-           SET occupied = GREATEST(COALESCE(occupied,0)-1,0),
-               available = GREATEST(COALESCE(sharing,1)-GREATEST(COALESCE(occupied,0)-1,0),0)
-           WHERE room_number=$1`,
-          [prevRoom]
+     SET 
+       occupied = GREATEST(COALESCE(occupied::integer, 0::integer) - 1::integer, 0::integer),
+       available = GREATEST(
+         COALESCE(sharing::integer, 1::integer) - 
+         GREATEST(COALESCE(occupied::integer, 0::integer) - 1::integer, 0::integer),
+         0::integer
+       )
+     WHERE room_number::text = $1::text`,
+          [String(prevRoom)]
         );
       }
 
@@ -249,12 +275,12 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
 
       if (roomCheck.rows.length > 0) {
         const { sharing, occupied } = roomCheck.rows[0];
-        if (occupied < sharing) {
+        if (Number(occupied) < Number(sharing)) {
           await client.query(
             `UPDATE rooms
              SET occupied=$1, available=GREATEST($2-$1,0)
              WHERE room_number=$3`,
-            [occupied + 1, sharing, room_no]
+            [Number(occupied) + 1, Number(sharing), room_no]
           );
         }
       }
@@ -321,8 +347,8 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
       const r = prof.rows[0].room_no;
       await client.query(
         `UPDATE rooms
-         SET occupied=GREATEST(COALESCE(occupied,0)-1,0),
-             available=GREATEST(COALESCE(sharing,1)-GREATEST(COALESCE(occupied,0)-1,0),0)
+         SET occupied=GREATEST(COALESCE(occupied,0)::int - 1, 0),
+             available=GREATEST(COALESCE(sharing,1)::int - GREATEST(COALESCE(occupied,0)::int - 1, 0), 0)
          WHERE room_number=$1`,
         [r]
       );
