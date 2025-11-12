@@ -124,6 +124,10 @@ export default function Complaints() {
                 onPress={() => setSelectedComplaint(c)}
               >
                 <Text style={styles.name}>{c.student_name}</Text>
+                <Text style={styles.studentHostel}>
+                  🏢 Hostel ID: {c.hostel_id || "—"}
+                </Text>
+
                 <Text style={styles.meta}>📧 {c.email}</Text>
                 <Text style={styles.meta}>
                   🏠 Room: {c.room_no || "N/A"} | {c.dept_branch || "Dept"}
@@ -321,4 +325,10 @@ const styles = StyleSheet.create({
   },
   backBtnText: { color: "#fff", fontWeight: "700" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  studentHostel: {
+    fontSize: 13,
+    color: "#1e3a8a",
+    fontWeight: "600",
+    marginVertical: 2,
+  },
 });

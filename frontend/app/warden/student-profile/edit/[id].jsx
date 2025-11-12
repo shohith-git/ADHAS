@@ -136,6 +136,16 @@ export default function WardenStudentDetails({ mode = "add" }) {
         value={details.profile_photo}
         onChangeText={(text) => setDetails({ ...details, profile_photo: text })}
       />
+      <Text style={styles.label}>Hostel ID</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter hostel ID (number only)"
+        keyboardType="numeric"
+        value={details.hostel_id?.toString() || ""}
+        onChangeText={(text) =>
+          setDetails({ ...details, hostel_id: text.replace(/[^0-9]/g, "") })
+        }
+      />
 
       <Text style={styles.label}>USN</Text>
       <TextInput

@@ -1,4 +1,3 @@
-// backend/routes/studentRoutes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -60,6 +59,7 @@ router.get("/past", authMiddleware, isWarden, async (req, res) => {
           year,
           batch,
           room_no,
+          hostel_id,  -- 🏢 added hostel_id
           phone_number,
           gender,
           dob,
@@ -72,8 +72,8 @@ router.get("/past", authMiddleware, isWarden, async (req, res) => {
           warden_remarks,
           role,
           college_domain,
-          created_at,   -- ✅ this is the "joined date"
-          left_at       -- ✅ this is the "left date"
+          created_at,
+          left_at
        FROM past_students
        ORDER BY left_at DESC NULLS LAST`
     );
@@ -93,9 +93,9 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-          u.id, u.name, u.email, u.role, u.created_at,
-          sp.usn, sp.dept_branch, sp.year, sp.batch,
-          sp.room_no, sp.profile_photo
+        u.id, u.name, u.email, u.role, u.created_at,
+        sp.usn, sp.dept_branch, sp.year, sp.batch,
+        sp.room_no, sp.profile_photo, sp.hostel_id   -- 🏢 added hostel_id
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.role = 'student'
@@ -128,7 +128,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
     const student = await pool.query(
       `SELECT 
           u.id, u.name, u.email, u.role,
-          sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no,
+          sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no, sp.hostel_id,  -- 🏢 added hostel_id
           sp.phone_number, sp.gender, sp.dob, sp.address,
           sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
           sp.profile_photo, sp.warden_remarks, sp.created_at, sp.updated_at
@@ -171,6 +171,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       mother_name,
       mother_number,
       profile_photo,
+      hostel_id, // 🏢 added hostel_id
     } = req.body;
 
     await client.query("BEGIN");
@@ -185,9 +186,9 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       await client.query(
         `UPDATE student_profiles
          SET usn=$1, dept_branch=$2, year=$3, batch=$4, room_no=$5, gender=$6, dob=$7,
-             phone_number=$8, address=$9, father_name=$10, father_number=$11,
-             mother_name=$12, mother_number=$13, profile_photo=$14, updated_at=NOW()
-         WHERE user_id=$15`,
+             hostel_id=$8, phone_number=$9, address=$10, father_name=$11, father_number=$12,
+             mother_name=$13, mother_number=$14, profile_photo=$15, updated_at=NOW()
+         WHERE user_id=$16`,
         [
           usn,
           dept_branch,
@@ -196,6 +197,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
           room_no,
           gender,
           dob,
+          hostel_id,
           phone_number,
           address,
           father_name,
@@ -210,10 +212,10 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
     } else {
       await client.query(
         `INSERT INTO student_profiles
-         (user_id, usn, dept_branch, year, batch, room_no, gender, dob,
+         (user_id, usn, dept_branch, year, batch, room_no, gender, dob, hostel_id,
           phone_number, address, father_name, father_number, mother_name,
           mother_number, profile_photo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
         [
           id,
           usn,
@@ -223,6 +225,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
           room_no,
           gender,
           dob,
+          hostel_id,
           phone_number,
           address,
           father_name,
@@ -235,11 +238,9 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       console.log(`✅ Inserted profile for user_id=${id}`);
     }
 
-    // 🔹 Safe room occupancy update
+    // 🔹 Safe room occupancy update (unchanged)
     if (room_no) {
       const prevRoom = existing.rows[0]?.room_no || null;
-
-      // 🧮 Decrement previous room if changed
       if (prevRoom && prevRoom !== room_no) {
         const prevRoomRes = await client.query(
           "SELECT sharing, occupied FROM rooms WHERE room_number = $1 FOR UPDATE",
@@ -257,13 +258,9 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
             `UPDATE rooms SET occupied=$1, available=$2 WHERE room_number=$3`,
             [newOccupiedPrev, newAvailablePrev, String(prevRoom)]
           );
-          console.log(
-            `✅ Room ${prevRoom} decremented (${occupiedPrev} → ${newOccupiedPrev})`
-          );
         }
       }
 
-      // 🧮 Increment new room
       const roomCheck = await client.query(
         "SELECT sharing, occupied FROM rooms WHERE room_number=$1 FOR UPDATE",
         [room_no]
@@ -281,11 +278,6 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
             `UPDATE rooms SET occupied=$1, available=$2 WHERE room_number=$3`,
             [newOccupied, newAvailable, room_no]
           );
-          console.log(
-            `✅ Room ${room_no} incremented (${occupied} → ${newOccupied})`
-          );
-        } else {
-          console.warn(`⚠️ Room ${room_no} is already full.`);
         }
       }
     }
@@ -315,12 +307,11 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
 
     await client.query("BEGIN");
 
-    // 🧩 Fetch full student info from both tables
     const result = await client.query(
       `SELECT 
          u.id AS user_id, u.name, u.email, u.role, u.college_domain,
-         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.phone_number,
-         sp.gender, sp.dob, sp.address, sp.father_name, sp.father_number,
+         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,  -- 🏢 added hostel_id
+         sp.phone_number, sp.gender, sp.dob, sp.address, sp.father_name, sp.father_number,
          sp.mother_name, sp.mother_number, sp.profile_photo, sp.batch, sp.warden_remarks
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
@@ -333,97 +324,52 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    const s = result.rows[0];
-    // 🧾 Move student into past_students table
     await client.query(
       `INSERT INTO past_students (
-    user_id, name, email, usn, dept_branch, year, room_no, phone_number,
-    gender, dob, address, father_name, father_number, mother_name,
-    mother_number, profile_photo, batch, warden_remarks,
-    role, college_domain, created_at, left_at
-  )
-  SELECT 
-    u.id AS user_id,
-    u.name,
-    u.email,
-    sp.usn,
-    sp.dept_branch,
-    sp.year,
-    sp.room_no,
-    sp.phone_number,
-    sp.gender,
-    sp.dob,
-    sp.address,
-    sp.father_name,
-    sp.father_number,
-    sp.mother_name,
-    sp.mother_number,
-    sp.profile_photo,
-    sp.batch,
-    sp.warden_remarks,
-    u.role,
-    u.college_domain,
-    u.created_at AS created_at,   -- ✅ capture original joined date
-    NOW() AS left_at              -- ✅ current deletion time
-  FROM users u
-  LEFT JOIN student_profiles sp ON sp.user_id = u.id
-  WHERE u.id = $1 AND u.role = 'student'
-  ON CONFLICT (email)
-  DO UPDATE SET
-    name=EXCLUDED.name,
-    dept_branch=EXCLUDED.dept_branch,
-    year=EXCLUDED.year,
-    room_no=EXCLUDED.room_no,
-    phone_number=EXCLUDED.phone_number,
-    gender=EXCLUDED.gender,
-    dob=EXCLUDED.dob,
-    address=EXCLUDED.address,
-    father_name=EXCLUDED.father_name,
-    father_number=EXCLUDED.father_number,
-    mother_name=EXCLUDED.mother_name,
-    mother_number=EXCLUDED.mother_number,
-    profile_photo=EXCLUDED.profile_photo,
-    batch=EXCLUDED.batch,
-    warden_remarks=EXCLUDED.warden_remarks,
-    role=EXCLUDED.role,
-    college_domain=EXCLUDED.college_domain,
-    created_at=EXCLUDED.created_at,
-    left_at=EXCLUDED.left_at`,
+        user_id, name, email, usn, dept_branch, year, room_no, hostel_id,  -- 🏢 added hostel_id
+        phone_number, gender, dob, address, father_name, father_number, mother_name,
+        mother_number, profile_photo, batch, warden_remarks,
+        role, college_domain, created_at, left_at
+      )
+      SELECT 
+        u.id, u.name, u.email, sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
+        sp.phone_number, sp.gender, sp.dob, sp.address,
+        sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
+        sp.profile_photo, sp.batch, sp.warden_remarks,
+        u.role, u.college_domain, u.created_at, NOW()
+      FROM users u
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      WHERE u.id = $1 AND u.role = 'student'
+      ON CONFLICT (email)
+      DO UPDATE SET
+        hostel_id=EXCLUDED.hostel_id,  -- 🏢 added hostel_id
+        name=EXCLUDED.name,
+        dept_branch=EXCLUDED.dept_branch,
+        year=EXCLUDED.year,
+        room_no=EXCLUDED.room_no,
+        phone_number=EXCLUDED.phone_number,
+        gender=EXCLUDED.gender,
+        dob=EXCLUDED.dob,
+        address=EXCLUDED.address,
+        father_name=EXCLUDED.father_name,
+        father_number=EXCLUDED.father_number,
+        mother_name=EXCLUDED.mother_name,
+        mother_number=EXCLUDED.mother_number,
+        profile_photo=EXCLUDED.profile_photo,
+        batch=EXCLUDED.batch,
+        warden_remarks=EXCLUDED.warden_remarks,
+        role=EXCLUDED.role,
+        college_domain=EXCLUDED.college_domain,
+        created_at=EXCLUDED.created_at,
+        left_at=EXCLUDED.left_at`,
       [id]
     );
 
-    // 🏠 Update room stats if applicable
-    if (s.room_no) {
-      const r = String(s.room_no);
-      const prevRoomRes = await client.query(
-        "SELECT sharing, occupied FROM rooms WHERE room_number = $1 FOR UPDATE",
-        [r]
-      );
-
-      if (prevRoomRes.rows.length > 0) {
-        const sharingPrev = Number(prevRoomRes.rows[0].sharing) || 1;
-        const occupiedPrev = Number(prevRoomRes.rows[0].occupied) || 0;
-        const newOccupiedPrev = Math.max(occupiedPrev - 1, 0);
-        const newAvailablePrev = Math.max(sharingPrev - newOccupiedPrev, 0);
-
-        await client.query(
-          `UPDATE rooms SET occupied = $1, available = $2 WHERE room_number = $3`,
-          [newOccupiedPrev, newAvailablePrev, r]
-        );
-
-        console.log(
-          `✅ Room ${r} updated (occupied ${occupiedPrev} → ${newOccupiedPrev})`
-        );
-      }
-    }
-
-    // 🧹 Delete student from active tables
     await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
     await client.query("DELETE FROM users WHERE id=$1", [id]);
 
     await client.query("COMMIT");
-    console.log(`✅ Moved ${s.email} to past_students`);
-    res.json({ message: `${s.name} moved to past student list ✅` });
+    res.json({ message: "Student moved to past_students ✅" });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("❌ Error deleting student:", err);

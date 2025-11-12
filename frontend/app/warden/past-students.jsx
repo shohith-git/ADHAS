@@ -28,10 +28,7 @@ export default function PastStudents() {
       });
       setPastStudents(res.data || []);
     } catch (err) {
-      console.error(
-        "❌ Error fetching past students:",
-        err.response?.data || err
-      );
+      console.error("❌ Error fetching past students:", err);
       alert("Failed to fetch past students");
     } finally {
       setLoading(false);
@@ -68,6 +65,9 @@ export default function PastStudents() {
               onPress={() => setSelectedStudent(s)}
             >
               <Text style={styles.name}>{s.name}</Text>
+              <Text style={styles.metaText}>
+                🏢 Hostel ID: {s.hostel_id || "—"}
+              </Text>
               <Text style={styles.email}>{s.email}</Text>
               <Text style={styles.role}>🎓 {s.dept_branch || s.role}</Text>
               <Text style={styles.date}>
@@ -81,7 +81,7 @@ export default function PastStudents() {
         )}
       </ScrollView>
 
-      {/* MODAL */}
+      {/* ===================== MODAL ===================== */}
       {selectedStudent && (
         <Modal
           visible={true}
@@ -92,8 +92,15 @@ export default function PastStudents() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
               <ScrollView showsVerticalScrollIndicator={false}>
+                {/* NAME + BASICS */}
                 <Text style={styles.modalTitle}>{selectedStudent.name}</Text>
-                <Text style={styles.modalMeta}>📧 {selectedStudent.email}</Text>
+
+                <Text style={styles.modalMeta}>
+                  🏢 Hostel ID: {selectedStudent.hostel_id || "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  📧 Email: {selectedStudent.email}
+                </Text>
                 <Text style={styles.modalMeta}>
                   🧾 USN: {selectedStudent.usn || "—"}
                 </Text>
@@ -122,6 +129,8 @@ export default function PastStudents() {
                 <Text style={styles.modalMeta}>
                   🏡 Address: {selectedStudent.address || "—"}
                 </Text>
+
+                {/* PARENTS INFO */}
                 <Text style={styles.sectionHeader}>👨‍👩‍👧 Parents Info</Text>
                 <Text style={styles.modalMeta}>
                   Father: {selectedStudent.father_name || "—"} (
@@ -131,10 +140,16 @@ export default function PastStudents() {
                   Mother: {selectedStudent.mother_name || "—"} (
                   {selectedStudent.mother_number || "—"})
                 </Text>
+
+                {/* WARDEN REMARKS */}
                 <Text style={styles.sectionHeader}>🗒️ Warden Remarks</Text>
-                <Text style={styles.remarkText}>
-                  {selectedStudent.warden_remarks || "No remarks recorded."}
-                </Text>
+                <View style={styles.remarkBox}>
+                  <Text style={styles.remarkText}>
+                    {selectedStudent.warden_remarks || "No remarks recorded."}
+                  </Text>
+                </View>
+
+                {/* JOIN/LEFT DATES */}
                 <Text style={styles.modalDate}>
                   🕒 Joined:{" "}
                   {selectedStudent.created_at
@@ -149,6 +164,7 @@ export default function PastStudents() {
                 </Text>
               </ScrollView>
 
+              {/* CLOSE BUTTON */}
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={() => setSelectedStudent(null)}
@@ -161,6 +177,7 @@ export default function PastStudents() {
         </Modal>
       )}
 
+      {/* BACK BUTTON */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/warden-dashboard")}
@@ -171,6 +188,7 @@ export default function PastStudents() {
   );
 }
 
+/* ===================== STYLES ===================== */
 const styles = StyleSheet.create({
   page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
   title: {
@@ -195,6 +213,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   name: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
+  metaText: { fontSize: 13, color: "#475569", marginTop: 2 },
   email: { color: "#475569", marginVertical: 2 },
   role: { fontSize: 13, color: "#2563eb", fontWeight: "600" },
   date: { fontSize: 12, color: "#64748b", marginTop: 4 },
@@ -226,14 +245,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0b5cff",
     marginTop: 12,
+    marginBottom: 4,
   },
-  remarkText: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 8,
+  remarkBox: {
+    backgroundColor: "#f8fafc",
+    borderLeftWidth: 4,
+    borderLeftColor: "#0b5cff",
+    borderRadius: 6,
     padding: 10,
     marginTop: 6,
-    fontSize: 13.5,
+    marginBottom: 10,
+  },
+  remarkText: {
     color: "#0f172a",
+    fontSize: 14,
+    lineHeight: 20,
   },
   closeBtn: {
     flexDirection: "row",

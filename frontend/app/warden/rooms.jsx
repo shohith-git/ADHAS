@@ -1,503 +1,341 @@
-// frontend/app/warden/rooms.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TextInput,
-  Button,
-  ScrollView,
-  Alert,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
   ActivityIndicator,
-  Dimensions,
 } from "react-native";
 import axios from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { Trash2 } from "lucide-react";
+import Swal from "sweetalert2";
 
-export default function Rooms() {
-  const [rooms, setRooms] = useState([]);
+export default function WardenStudentManagement() {
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editRoomId, setEditRoomId] = useState(null);
-  const [editForm, setEditForm] = useState({});
-  const [form, setForm] = useState({
-    fromRoom: "",
-    toRoom: "",
-    floor: "",
-    eastSharing: "",
-    westSharing: "",
-  });
-  const [manualForm, setManualForm] = useState({
-    room_number: "",
-    floor: "",
-    side: "",
-    sharing: "",
-  });
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const BACKEND = "http://10.69.232.21:5000";
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // 📦 Fetch rooms
-  const fetchRooms = async () => {
+  // 📋 Fetch Students List
+  const fetchStudents = async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
-      const res = await axios.get(`${BACKEND}/api/rooms`, {
+      const res = await axios.get(`${BACKEND}/api/students`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setRooms(res.data);
-    } catch (error) {
-      console.error("Error fetching rooms:", error);
-      Alert.alert("Error", "Unable to fetch room data");
+      setStudents(res.data);
+    } catch (err) {
+      console.error("Error fetching students:", err);
+      Swal.fire("❌ Error", "Failed to load students list", "error");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRooms();
+    fetchStudents();
   }, []);
 
-  // 🏗️ Auto-generate rooms
-  const autoGenerateRooms = async () => {
+  // 🧍 Register New Student
+  const registerStudent = async () => {
+    if (!name || !email || !password)
+      return Swal.fire("⚠️ Missing Info", "Please fill all fields", "warning");
+
+    if (!email.endsWith("@cit_nc.edu.in"))
+      return Swal.fire(
+        "❌ Invalid Email",
+        "Use only college email (e.g. name@cit_nc.edu.in)",
+        "error"
+      );
+
     try {
-      const token = await AsyncStorage.getItem("token");
+      setSubmitting(true);
       const res = await axios.post(
-        `${BACKEND}/api/rooms/auto-generate`,
+        `${BACKEND}/api/students/register`,
+        { name, email, password },
         {
-          fromRoom: parseInt(form.fromRoom),
-          toRoom: parseInt(form.toRoom),
-          floor: parseInt(form.floor),
-          eastSharing: parseInt(form.eastSharing),
-          westSharing: parseInt(form.westSharing),
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
       );
-      Alert.alert("Success", res.data.message);
-      fetchRooms();
-    } catch (err) {
-      console.error("Error:", err);
-      Alert.alert("Error", "Auto-generate failed");
-    }
-  };
-
-  // ➕ Add individual room
-  const addRoom = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      await axios.post(`${BACKEND}/api/rooms`, manualForm, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      Alert.alert("Added", "Room added successfully!");
-      fetchRooms();
-    } catch (err) {
-      Alert.alert("Error", "Failed to add room");
-    }
-  };
-
-  // ✏️ Edit room
-  const handleEdit = (room) => {
-    setEditRoomId(room.id);
-    setEditForm(room);
-  };
-
-  const saveEdit = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      const res = await axios.put(
-        `${BACKEND}/api/rooms/${editRoomId}`,
-        editForm,
-        { headers: { Authorization: `Bearer ${token}` } }
+      Swal.fire(
+        "✅ Success",
+        res.data.message || "Student registered",
+        "success"
       );
-      Alert.alert("Updated", res.data.message);
-      setEditRoomId(null);
-      fetchRooms();
+      setName("");
+      setEmail("");
+      setPassword("");
+      setShowPassword(false);
+      fetchStudents();
     } catch (err) {
-      Alert.alert("Error", "Failed to save changes");
+      console.error("Registration error:", err);
+      Swal.fire(
+        "❌ Error",
+        err.response?.data?.message || "Registration failed",
+        "error"
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // ❌ Delete single room
-  const deleteRoom = async (id) => {
+  // 🗑️ Delete Student → Move to past_students
+  const deleteStudent = async (id, studentName) => {
+    const confirmation = await Swal.fire({
+      title: "Confirm Removal",
+      text: `Remove ${studentName} and move to Past Students?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove",
+      cancelButtonText: "Cancel",
+    });
+    if (!confirmation.isConfirmed) return;
+
     try {
-      const token = await AsyncStorage.getItem("token");
-      await axios.delete(`${BACKEND}/api/rooms/${id}`, {
+      const res = await axios.delete(`${BACKEND}/api/students/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      Alert.alert("Deleted", "Room deleted successfully");
-      fetchRooms();
-    } catch {
-      Alert.alert("Error", "Failed to delete room");
+      Swal.fire("✅ Removed", res.data.message, "success");
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      console.error("Delete error:", err);
+      Swal.fire(
+        "❌ Error",
+        err.response?.data?.message || "Failed to delete student",
+        "error"
+      );
     }
   };
 
-  // 🧹 Delete all rooms
-  const deleteAllRooms = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      await axios.delete(`${BACKEND}/api/rooms`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      Alert.alert("Cleared", "All rooms deleted");
-      fetchRooms();
-    } catch {
-      Alert.alert("Error", "Failed to delete all rooms");
-    }
-  };
-
-  if (loading)
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text>Loading rooms...</Text>
-      </View>
-    );
+  // 🔙 Back to Dashboard
+  const handleBack = () => router.push("/warden-dashboard");
 
   return (
-    <ScrollView style={styles.page}>
-      <Text style={styles.pageTitle}>🏠 Room Management</Text>
+    <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
+      <Text style={styles.pageTitle}>👨‍🎓 Student Management</Text>
 
-      {/* 🔹 Top Form Row: Auto Generate + Add Single Room */}
-      <View style={styles.formRow}>
-        {/* ⚙️ Auto Generate */}
-        <View style={[styles.formCard, styles.shadowCard]}>
-          <Text style={styles.formHeader}>
-            ⚙️ <Text style={{ color: "#0b5cff" }}>Auto Generate Rooms</Text>
-          </Text>
+      {/* 🔹 Register New Student (Card Style) */}
+      <View style={[styles.cardContainer, styles.shadowCard]}>
+        <Text style={styles.sectionTitle}>🆕 Register New Student</Text>
 
-          {[
-            ["From Room:", "fromRoom", "Eg:101"],
-            ["To Room:", "toRoom", "Eg:120"],
-            ["Floor:", "floor", "Eg:2"],
-            ["East Sharing:", "eastSharing", "Eg:2"],
-            ["West Sharing:", "westSharing", "Eg:3"],
-          ].map(([label, key, placeholder]) => (
-            <View key={key} style={styles.inputBlock}>
-              <Text style={styles.label}>{label}</Text>
-              <TextInput
-                style={styles.inputModern}
-                placeholder={placeholder}
-                placeholderTextColor="#94a3b8"
-                value={form[key]}
-                onChangeText={(t) => setForm({ ...form, [key]: t })}
-              />
-            </View>
-          ))}
-
-          <TouchableOpacity
-            style={[styles.buttonGradient, { marginTop: 10 }]}
-            onPress={autoGenerateRooms}
-          >
-            <Text style={styles.buttonText}>⚡ Generate Rooms</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 🏠 Add Single Room */}
-        <View style={[styles.formCard, styles.shadowCard]}>
-          <Text style={styles.formHeader}>
-            🏠 <Text style={{ color: "#0b5cff" }}>Add Single Room</Text>
-          </Text>
-
-          {[
-            ["Room Number:", "room_number", "Eg:E101"],
-            ["Floor:", "floor", "Eg:2"],
-            ["Side (East/West):", "side", "Eg:East"],
-            ["Sharing:", "sharing", "Eg:2"],
-          ].map(([label, key, placeholder]) => (
-            <View key={key} style={styles.inputBlock}>
-              <Text style={styles.label}>{label}</Text>
-              <TextInput
-                style={styles.inputModern}
-                placeholder={placeholder}
-                placeholderTextColor="#94a3b8"
-                value={manualForm[key]}
-                onChangeText={(t) => setManualForm({ ...manualForm, [key]: t })}
-              />
-            </View>
-          ))}
-
-          <TouchableOpacity
-            style={[styles.buttonGradient, { marginTop: 10 }]}
-            onPress={addRoom}
-          >
-            <Text style={styles.buttonText}>➕ Add Room</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 🧭 EAST WING */}
-      <Text style={styles.subHeader}>🧭 East Wing</Text>
-      <View style={styles.grid}>
-        {rooms
-          .filter((r) => r.side?.toLowerCase() === "east")
-          .map((room) => (
-            <RoomCard
-              key={room.id}
-              room={room}
-              editRoomId={editRoomId}
-              editForm={editForm}
-              setEditForm={setEditForm}
-              handleEdit={handleEdit}
-              saveEdit={saveEdit}
-              deleteRoom={deleteRoom}
-              setEditRoomId={setEditRoomId} // ✅ FIXED
-            />
-          ))}
-      </View>
-
-      {/* 🌇 WEST WING */}
-      <Text style={[styles.subHeader, { marginTop: 20 }]}>🌇 West Wing</Text>
-      <View style={styles.grid}>
-        {rooms
-          .filter((r) => r.side?.toLowerCase() === "west")
-          .map((room) => (
-            <RoomCard
-              key={room.id}
-              room={room}
-              editRoomId={editRoomId}
-              editForm={editForm}
-              setEditForm={setEditForm}
-              handleEdit={handleEdit}
-              saveEdit={saveEdit}
-              deleteRoom={deleteRoom}
-              setEditRoomId={setEditRoomId} // ✅ FIXED
-            />
-          ))}
-      </View>
-
-      {/* 🗑️ Delete All */}
-      <View style={{ marginTop: 20 }}>
-        <Button
-          title="🗑️ Delete All Rooms"
-          color="red"
-          onPress={deleteAllRooms}
+        <Text style={styles.label}>Full Name:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter student name"
+          value={name}
+          onChangeText={setName}
         />
+
+        <Text style={styles.label}>College Email:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. abc@cit_nc.edu.in"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+
+        <Text style={styles.label}>Password:</Text>
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.input, { flex: 1, borderWidth: 0 }]}
+            placeholder="Enter password"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity
+            onPress={() => setShowPassword((s) => !s)}
+            style={styles.eyeButton}
+          >
+            <Text style={{ fontSize: 18 }}>{showPassword ? "🙈" : "👁️"}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.buttonGradient, submitting && { opacity: 0.7 }]}
+          disabled={submitting}
+          onPress={registerStudent}
+        >
+          <Text style={styles.buttonText}>
+            {submitting ? "Registering..." : "Register Student"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* 🔙 Back Button */}
+      {/* 📋 Registered Students */}
+      <Text style={styles.sectionTitle}>📋 Registered Students</Text>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#2563eb" />
+      ) : students.length === 0 ? (
+        <Text style={styles.noData}>No students found.</Text>
+      ) : (
+        <View style={styles.grid}>
+          {students.map((s) => (
+            <View key={s.id} style={[styles.studentCard, styles.shadowCard]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.studentName}>{s.name}</Text>
+                <Text style={styles.studentEmail}>{s.email}</Text>
+                <Text style={styles.roleTag}>🎓 {s.role}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => deleteStudent(s.id, s.name)}
+              >
+                <Trash2 size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* 🔗 View History */}
       <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => router.push("/warden-dashboard")}
+        style={[styles.secondaryBtn, { backgroundColor: "#1e40af" }]}
+        onPress={() => router.push("/warden/past-students")}
       >
+        <Text style={styles.secondaryBtnText}>📜 View Student History</Text>
+      </TouchableOpacity>
+
+      {/* 🔙 Back to Dashboard */}
+      <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
         <Text style={styles.backBtnText}>← Back to Dashboard</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-/* ------------------------- ROOM CARD COMPONENT ------------------------- */
-function RoomCard({
-  room,
-  editRoomId,
-  editForm,
-  setEditForm,
-  handleEdit,
-  saveEdit,
-  deleteRoom,
-  setEditRoomId,
-}) {
-  const full = room.occupied >= room.sharing;
-
-  return (
-    <View style={[styles.card, full ? styles.fullRoom : styles.availableRoom]}>
-      {editRoomId === room.id ? (
-        <>
-          <Text style={styles.editLabel}>Room Number:</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter room number"
-            value={editForm.room_number}
-            onChangeText={(t) => setEditForm({ ...editForm, room_number: t })}
-          />
-
-          <Text style={styles.editLabel}>Floor:</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter floor"
-            value={String(editForm.floor)}
-            onChangeText={(t) => setEditForm({ ...editForm, floor: t })}
-          />
-
-          <Text style={styles.editLabel}>Side (East/West):</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Eg: East"
-            value={editForm.side}
-            onChangeText={(t) => setEditForm({ ...editForm, side: t })}
-          />
-
-          <Text style={styles.editLabel}>Sharing:</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter sharing count"
-            value={String(editForm.sharing)}
-            onChangeText={(t) => setEditForm({ ...editForm, sharing: t })}
-          />
-
-          {/* 💾 Save + ❌ Cancel Buttons */}
-          <View style={styles.dualBtnRow}>
-            <TouchableOpacity style={styles.saveBtn} onPress={saveEdit}>
-              <Text style={styles.saveText}>💾 Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => {
-                setEditForm({});
-                setEditRoomId(null);
-              }}
-            >
-              <Text style={styles.cancelText}>❌ Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        <>
-          <Text style={styles.roomNumber}>{room.room_number}</Text>
-          <Text style={styles.roomDetail}>
-            Floor {room.floor} • {room.side}
-          </Text>
-          <Text style={styles.occupancy}>
-            Sharing: {room.sharing} | Occupied: {room.occupied}
-          </Text>
-
-          <View style={styles.btnRow}>
-            <TouchableOpacity
-              onPress={() => handleEdit(room)}
-              style={styles.editBtn}
-            >
-              <Text style={styles.btnText}>✏️ Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => deleteRoom(room.id)}
-              style={styles.delBtn}
-            >
-              <Text style={styles.btnText}>🗑️ Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-    </View>
-  );
-}
-
 /* ------------------------------ STYLES ------------------------------ */
-const { width } = Dimensions.get("window");
-const cardWidth = width / 3 - 30;
-
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f9fafb", padding: 20 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  page: { backgroundColor: "#f8fafc", flex: 1 },
   pageTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: "#0b5cff",
-    marginBottom: 10,
+    marginBottom: 20,
   },
+
+  /* 🌟 Card Containers */
+  cardContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 24,
+  },
+  shadowCard: {
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+
+  /* 🧾 Sections */
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: "#1e293b",
-  },
-  subHeader: {
-    fontSize: 17,
     fontWeight: "700",
-    color: "#0b5cff",
-    marginBottom: 8,
-    marginTop: 10,
-    textTransform: "uppercase",
+    color: "#1e293b",
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    paddingBottom: 6,
+  },
+
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 4,
   },
   input: {
     borderWidth: 1,
     borderColor: "#cbd5e1",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 6,
-    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    backgroundColor: "#f9fafb",
   },
-  inputHalf: {
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#cbd5e1",
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 8,
-    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    marginBottom: 10,
+    paddingRight: 10,
+    backgroundColor: "#fff",
   },
-  label: {
-    fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 4,
-    marginTop: 6,
+  eyeButton: { paddingHorizontal: 8 },
+
+  /* 💙 Buttons */
+  buttonGradient: {
+    backgroundColor: "#2563eb",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#1e40af",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  editLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#1e293b",
-    marginTop: 4,
-    marginBottom: 2,
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
+
+  /* 🧍 Student Cards */
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  card: {
-    width: cardWidth,
+  studentCard: {
+    width: "48%",
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    elevation: 3,
-  },
-  availableRoom: { backgroundColor: "#e0f2fe" },
-  fullRoom: { backgroundColor: "#fee2e2" },
-  roomNumber: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
-  roomDetail: { color: "#475569", marginVertical: 3 },
-  occupancy: { color: "#334155", fontWeight: "600" },
-  btnRow: {
+    padding: 14,
+    backgroundColor: "#e0f2fe",
+    marginBottom: 14,
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  dualBtnRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
-    width: "100%",
-    gap: 10,
-  },
-  editBtn: {
-    backgroundColor: "#93c5fd",
-    padding: 6,
-    borderRadius: 6,
-    width: "48%",
     alignItems: "center",
   },
-  delBtn: {
-    backgroundColor: "#fca5a5",
-    padding: 6,
-    borderRadius: 6,
-    width: "48%",
+  studentName: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
+  studentEmail: { color: "#64748b", marginVertical: 2 },
+  roleTag: { fontSize: 13, color: "#2563eb" },
+  deleteBtn: {
+    backgroundColor: "#ef4444",
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+
+  /* 🔗 Other Buttons */
+  secondaryBtn: {
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
     alignItems: "center",
   },
-  btnText: { fontWeight: "600", color: "#0f172a" },
-  saveBtn: {
-    backgroundColor: "#2563eb",
-    paddingVertical: 8,
-    borderRadius: 6,
-    flex: 1,
-    alignItems: "center",
-  },
-  saveText: { color: "#fff", fontWeight: "700" },
-  cancelBtn: {
-    backgroundColor: "#cbd5e1",
-    paddingVertical: 8,
-    borderRadius: 6,
-    flex: 1,
-    alignItems: "center",
-  },
-  cancelText: {
-    color: "#1e293b",
-    fontWeight: "700",
-  },
+  secondaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   backBtn: {
     marginTop: 25,
     backgroundColor: "#0b5cff",
@@ -505,80 +343,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-  backBtnText: { color: "#fff", fontWeight: "700" },
-  formRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    marginBottom: 20,
-  },
-  formCard: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    width: "48%",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  shadowCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-
-  formHeader: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 14,
-    color: "#1e293b",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    paddingBottom: 6,
-  },
-
-  inputBlock: {
-    marginBottom: 10,
-  },
-
-  inputModern: {
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    backgroundColor: "#f8fafc",
-    color: "#0f172a",
-  },
-
-  buttonGradient: {
-    backgroundColor: "linear-gradient(90deg, #2563eb, #1d4ed8)", // looks good on web
-    backgroundColor: "#2563eb", // fallback for React Native Web
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1e40af",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-    letterSpacing: 0.4,
-  },
+  backBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  noData: { color: "#64748b", textAlign: "center", marginVertical: 10 },
 });
