@@ -1,3 +1,4 @@
+// backend/routes/studentRoutes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -44,23 +45,37 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🧾 Get all past students
+   🧾 Get all past students (with full data)
 ===================================================== */
 router.get("/past", authMiddleware, isWarden, async (req, res) => {
   try {
-    const colCheck = await pool.query(
-      `SELECT column_name FROM information_schema.columns
-       WHERE table_name = 'past_students'
-         AND column_name IN ('left_at', 'left_on')`
-    );
-
-    const leftColumn =
-      colCheck.rows.length > 0 ? colCheck.rows[0].column_name : "left_at";
-
     const result = await pool.query(
-      `SELECT id, name, email, role, college_domain, ${leftColumn} AS left_at
+      `SELECT 
+          id,
+          user_id,
+          name,
+          email,
+          usn,
+          dept_branch,
+          year,
+          batch,
+          room_no,
+          phone_number,
+          gender,
+          dob,
+          address,
+          father_name,
+          father_number,
+          mother_name,
+          mother_number,
+          profile_photo,
+          warden_remarks,
+          role,
+          college_domain,
+          created_at,   -- ✅ this is the "joined date"
+          left_at       -- ✅ this is the "left date"
        FROM past_students
-       ORDER BY ${leftColumn} DESC`
+       ORDER BY left_at DESC NULLS LAST`
     );
 
     console.log(`✅ Past students fetched: ${result.rows.length}`);
@@ -78,17 +93,9 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-          u.id AS id,
-          u.name AS name,
-          u.email AS email,
-          u.role AS role,
-          u.created_at AS created_at,
-          sp.usn,
-          sp.dept_branch,
-          sp.year,
-          sp.batch,
-          sp.room_no,
-          sp.profile_photo
+          u.id, u.name, u.email, u.role, u.created_at,
+          sp.usn, sp.dept_branch, sp.year, sp.batch,
+          sp.room_no, sp.profile_photo
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.role = 'student'
@@ -120,27 +127,11 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
     const student = await pool.query(
       `SELECT 
-          u.id,
-          u.name,
-          u.email,
-          u.role,
-          sp.usn,
-          sp.dept_branch,
-          sp.year,
-          sp.batch,
-          sp.room_no,
-          sp.phone_number,
-          sp.gender,
-          sp.dob,
-          sp.address,
-          sp.father_name,
-          sp.father_number,
-          sp.mother_name,
-          sp.mother_number,
-          sp.profile_photo,
-          sp.warden_remarks,
-          sp.created_at,
-          sp.updated_at
+          u.id, u.name, u.email, u.role,
+          sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no,
+          sp.phone_number, sp.gender, sp.dob, sp.address,
+          sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
+          sp.profile_photo, sp.warden_remarks, sp.created_at, sp.updated_at
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'student'`,
@@ -165,11 +156,6 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-
-    if (!id || id === "null" || isNaN(Number(id))) {
-      return res.status(400).json({ message: "Invalid student ID" });
-    }
-
     const {
       usn,
       dept_branch,
@@ -194,6 +180,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       [id]
     );
 
+    // 🔹 Update or insert profile
     if (existing.rows.length > 0) {
       await client.query(
         `UPDATE student_profiles
@@ -248,40 +235,57 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       console.log(`✅ Inserted profile for user_id=${id}`);
     }
 
-    // ✅ Update room stats safely
+    // 🔹 Safe room occupancy update
     if (room_no) {
-      const prevRoom =
-        existing.rows.length > 0 ? existing.rows[0].room_no : null;
+      const prevRoom = existing.rows[0]?.room_no || null;
 
+      // 🧮 Decrement previous room if changed
       if (prevRoom && prevRoom !== room_no) {
-        await client.query(
-          `UPDATE rooms
-     SET 
-       occupied = GREATEST(COALESCE(occupied::integer, 0::integer) - 1::integer, 0::integer),
-       available = GREATEST(
-         COALESCE(sharing::integer, 1::integer) - 
-         GREATEST(COALESCE(occupied::integer, 0::integer) - 1::integer, 0::integer),
-         0::integer
-       )
-     WHERE room_number::text = $1::text`,
+        const prevRoomRes = await client.query(
+          "SELECT sharing, occupied FROM rooms WHERE room_number = $1 FOR UPDATE",
           [String(prevRoom)]
         );
+
+        if (prevRoomRes.rows.length > 0) {
+          const sharingPrev = Number(prevRoomRes.rows[0].sharing) || 1;
+          const occupiedPrev = Number(prevRoomRes.rows[0].occupied) || 0;
+
+          const newOccupiedPrev = Math.max(occupiedPrev - 1, 0);
+          const newAvailablePrev = Math.max(sharingPrev - newOccupiedPrev, 0);
+
+          await client.query(
+            `UPDATE rooms SET occupied=$1, available=$2 WHERE room_number=$3`,
+            [newOccupiedPrev, newAvailablePrev, String(prevRoom)]
+          );
+          console.log(
+            `✅ Room ${prevRoom} decremented (${occupiedPrev} → ${newOccupiedPrev})`
+          );
+        }
       }
 
+      // 🧮 Increment new room
       const roomCheck = await client.query(
         "SELECT sharing, occupied FROM rooms WHERE room_number=$1 FOR UPDATE",
         [room_no]
       );
 
       if (roomCheck.rows.length > 0) {
-        const { sharing, occupied } = roomCheck.rows[0];
-        if (Number(occupied) < Number(sharing)) {
+        const sharing = Number(roomCheck.rows[0].sharing) || 1;
+        const occupied = Number(roomCheck.rows[0].occupied) || 0;
+
+        if (occupied < sharing) {
+          const newOccupied = occupied + 1;
+          const newAvailable = Math.max(sharing - newOccupied, 0);
+
           await client.query(
-            `UPDATE rooms
-             SET occupied=$1, available=GREATEST($2-$1,0)
-             WHERE room_number=$3`,
-            [Number(occupied) + 1, Number(sharing), room_no]
+            `UPDATE rooms SET occupied=$1, available=$2 WHERE room_number=$3`,
+            [newOccupied, newAvailable, room_no]
           );
+          console.log(
+            `✅ Room ${room_no} incremented (${occupied} → ${newOccupied})`
+          );
+        } else {
+          console.warn(`⚠️ Room ${room_no} is already full.`);
         }
       }
     }
@@ -304,62 +308,122 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
+
     if (!id || id === "null" || isNaN(Number(id))) {
       return res.status(400).json({ message: "Invalid student ID" });
     }
 
     await client.query("BEGIN");
+
+    // 🧩 Fetch full student info from both tables
     const result = await client.query(
-      "SELECT * FROM users WHERE id=$1 AND role='student'",
+      `SELECT 
+         u.id AS user_id, u.name, u.email, u.role, u.college_domain,
+         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.phone_number,
+         sp.gender, sp.dob, sp.address, sp.father_name, sp.father_number,
+         sp.mother_name, sp.mother_number, sp.profile_photo, sp.batch, sp.warden_remarks
+       FROM users u
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
+       WHERE u.id=$1 AND u.role='student'`,
       [id]
     );
+
     if (result.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Student not found" });
     }
 
-    const student = result.rows[0];
-
-    const colCheck = await client.query(
-      `SELECT column_name FROM information_schema.columns
-       WHERE table_name='past_students'
-         AND column_name IN ('left_at','left_on')`
-    );
-    const leftColumn =
-      colCheck.rows.length > 0 ? colCheck.rows[0].column_name : "left_at";
-
+    const s = result.rows[0];
+    // 🧾 Move student into past_students table
     await client.query(
-      `INSERT INTO past_students (name,email,role,college_domain,${leftColumn})
-       VALUES ($1,$2,$3,$4,NOW())
-       ON CONFLICT (email) DO UPDATE
-       SET name=EXCLUDED.name,
-           role=EXCLUDED.role,
-           college_domain=EXCLUDED.college_domain,
-           ${leftColumn}=NOW()`,
-      [student.name, student.email, student.role, student.college_domain]
-    );
-
-    const prof = await client.query(
-      "SELECT room_no FROM student_profiles WHERE user_id=$1",
+      `INSERT INTO past_students (
+    user_id, name, email, usn, dept_branch, year, room_no, phone_number,
+    gender, dob, address, father_name, father_number, mother_name,
+    mother_number, profile_photo, batch, warden_remarks,
+    role, college_domain, created_at, left_at
+  )
+  SELECT 
+    u.id AS user_id,
+    u.name,
+    u.email,
+    sp.usn,
+    sp.dept_branch,
+    sp.year,
+    sp.room_no,
+    sp.phone_number,
+    sp.gender,
+    sp.dob,
+    sp.address,
+    sp.father_name,
+    sp.father_number,
+    sp.mother_name,
+    sp.mother_number,
+    sp.profile_photo,
+    sp.batch,
+    sp.warden_remarks,
+    u.role,
+    u.college_domain,
+    u.created_at AS created_at,   -- ✅ capture original joined date
+    NOW() AS left_at              -- ✅ current deletion time
+  FROM users u
+  LEFT JOIN student_profiles sp ON sp.user_id = u.id
+  WHERE u.id = $1 AND u.role = 'student'
+  ON CONFLICT (email)
+  DO UPDATE SET
+    name=EXCLUDED.name,
+    dept_branch=EXCLUDED.dept_branch,
+    year=EXCLUDED.year,
+    room_no=EXCLUDED.room_no,
+    phone_number=EXCLUDED.phone_number,
+    gender=EXCLUDED.gender,
+    dob=EXCLUDED.dob,
+    address=EXCLUDED.address,
+    father_name=EXCLUDED.father_name,
+    father_number=EXCLUDED.father_number,
+    mother_name=EXCLUDED.mother_name,
+    mother_number=EXCLUDED.mother_number,
+    profile_photo=EXCLUDED.profile_photo,
+    batch=EXCLUDED.batch,
+    warden_remarks=EXCLUDED.warden_remarks,
+    role=EXCLUDED.role,
+    college_domain=EXCLUDED.college_domain,
+    created_at=EXCLUDED.created_at,
+    left_at=EXCLUDED.left_at`,
       [id]
     );
-    if (prof.rows.length > 0 && prof.rows[0].room_no) {
-      const r = prof.rows[0].room_no;
-      await client.query(
-        `UPDATE rooms
-         SET occupied=GREATEST(COALESCE(occupied,0)::int - 1, 0),
-             available=GREATEST(COALESCE(sharing,1)::int - GREATEST(COALESCE(occupied,0)::int - 1, 0), 0)
-         WHERE room_number=$1`,
+
+    // 🏠 Update room stats if applicable
+    if (s.room_no) {
+      const r = String(s.room_no);
+      const prevRoomRes = await client.query(
+        "SELECT sharing, occupied FROM rooms WHERE room_number = $1 FOR UPDATE",
         [r]
       );
+
+      if (prevRoomRes.rows.length > 0) {
+        const sharingPrev = Number(prevRoomRes.rows[0].sharing) || 1;
+        const occupiedPrev = Number(prevRoomRes.rows[0].occupied) || 0;
+        const newOccupiedPrev = Math.max(occupiedPrev - 1, 0);
+        const newAvailablePrev = Math.max(sharingPrev - newOccupiedPrev, 0);
+
+        await client.query(
+          `UPDATE rooms SET occupied = $1, available = $2 WHERE room_number = $3`,
+          [newOccupiedPrev, newAvailablePrev, r]
+        );
+
+        console.log(
+          `✅ Room ${r} updated (occupied ${occupiedPrev} → ${newOccupiedPrev})`
+        );
+      }
     }
 
+    // 🧹 Delete student from active tables
     await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
     await client.query("DELETE FROM users WHERE id=$1", [id]);
 
     await client.query("COMMIT");
-    console.log(`✅ Moved ${student.email} to past_students`);
-    res.json({ message: `${student.name} moved to past student list ✅` });
+    console.log(`✅ Moved ${s.email} to past_students`);
+    res.json({ message: `${s.name} moved to past student list ✅` });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("❌ Error deleting student:", err);
