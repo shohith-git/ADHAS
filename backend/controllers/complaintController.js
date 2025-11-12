@@ -53,6 +53,7 @@ exports.getAllComplaints = async (req, res) => {
           u.id AS user_id,
           u.name AS student_name,
           u.email,
+          sp.hostel_id,
           sp.dept_branch,
           sp.year,
           sp.usn

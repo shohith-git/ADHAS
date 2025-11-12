@@ -134,6 +134,11 @@ export default function StudentDetails() {
         <Text style={styles.sectionHeader}>📋 Student Details</Text>
 
         <View style={styles.detailRow}>
+          <Text style={styles.label}>Hostel ID</Text>
+          <Text style={styles.value}>{student.hostel_id || "N/A"}</Text>
+        </View>
+
+        <View style={styles.detailRow}>
           <Text style={styles.label}>USN</Text>
           <Text style={styles.value}>{student.usn || "N/A"}</Text>
         </View>

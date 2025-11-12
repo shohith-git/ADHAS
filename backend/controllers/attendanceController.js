@@ -1,54 +1,58 @@
-// adhas/backend/controllers/attendanceController.js
 const pool = require("../db");
 
-// 🟢 Mark attendance (fixed version)
+// 🟢 Mark attendance (duplicate-safe + clean timestamps)
 exports.markAttendance = async (req, res) => {
   try {
     console.log("📩 Incoming body:", req.body);
 
-    // Destructure safely
     const student_id = req.body.student_id ?? req.body.studentId;
-    const method = req.body.method;
-    const location = req.body.location;
+    const method = req.body.method || "";
 
-    console.log("✅ Parsed values:", { student_id, method, location });
-
-    // Check for missing fields (stringified and trimmed)
-    if (
-      !student_id ||
-      String(student_id).trim() === "" ||
-      !method ||
-      String(method).trim() === "" ||
-      !location ||
-      String(location).trim() === ""
-    ) {
+    if (!student_id || !method) {
       return res.status(400).json({
-        message: "All fields are required (student_id, method, location)",
+        message: "student_id and method are required",
       });
     }
 
+    // Check if student exists
+    const checkStudent = await pool.query(
+      "SELECT id FROM users WHERE id = $1 AND role = 'student'",
+      [student_id]
+    );
+    if (checkStudent.rows.length === 0) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Prevent duplicate marking for same date
+    const existing = await pool.query(
+      "SELECT id FROM attendance WHERE student_id = $1 AND date = CURRENT_DATE",
+      [student_id]
+    );
+    if (existing.rows.length > 0) {
+      return res
+        .status(200)
+        .json({ message: "Already marked today", data: existing.rows[0] });
+    }
+
+    // Insert new attendance safely (no location)
     const query = `
-     INSERT INTO attendance (student_id, date, time, method, location)
-VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE, 
-        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::TIME, $2, $3)
-RETURNING *;
-
+      INSERT INTO attendance (student_id, date, time, method)
+      VALUES ($1, CURRENT_DATE, CURRENT_TIME, $2)
+      RETURNING student_id, date, time, method;
     `;
-    const values = [student_id, method, location];
-    console.log("🧠 Executing query:", query, values);
+    const result = await pool.query(query, [student_id, method]);
 
-    const result = await pool.query(query, values);
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(500).json({ message: "Insert failed unexpectedly" });
+    }
 
     console.log("✅ Attendance inserted:", result.rows[0]);
-
     res.status(201).json({
-      message: "Attendance marked successfully ✅",
+      message: "Attendance marked successfully",
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("❌ Error in markAttendance");
-    console.error("Message:", err.message);
-    console.error("Stack:", err.stack);
+    console.error("❌ Error in markAttendance:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -59,14 +63,19 @@ exports.getAllAttendance = async (req, res) => {
     const query = `
       SELECT 
         a.id,
+        a.student_id,
         u.name AS student_name,
         u.email AS student_email,
+        sp.usn,
+        sp.room_no,
+        sp.hostel_id,
+        sp.dept_branch,
         a.date,
         a.time,
-        a.method,
-        a.location
+        a.method
       FROM attendance a
       JOIN users u ON a.student_id = u.id
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
       WHERE u.role = 'student'
       ORDER BY a.date DESC, a.time DESC;
     `;
@@ -83,7 +92,7 @@ exports.getAttendanceByStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
     const query = `
-      SELECT date, time, method, location
+      SELECT date, time, method
       FROM attendance
       WHERE student_id = $1
       ORDER BY date DESC, time DESC;

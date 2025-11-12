@@ -78,7 +78,7 @@ export default function StudentProfileGrid() {
         <Ionicons name="search-outline" size={20} color="#475569" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by Name, USN, Email, or Room Number..."
+          placeholder="Search by Id, Name, Room Number."
           placeholderTextColor="#94a3b8"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -105,12 +105,13 @@ export default function StudentProfileGrid() {
               const q = searchQuery.toLowerCase();
               return (
                 s.name?.toLowerCase().includes(q) ||
-                s.usn?.toLowerCase().includes(q) ||
-                s.email?.toLowerCase().includes(q) ||
-                s.room_no?.toLowerCase().includes(q) ||
-                s.dept_branch?.toLowerCase().includes(q)
+                String(s.hostel_id || "")
+                  .toLowerCase()
+                  .includes(q) ||
+                s.room_no?.toLowerCase().includes(q)
               );
             })
+
             .map((s) => {
               const accent = getAccent(s.room_no);
               return (
@@ -147,6 +148,10 @@ export default function StudentProfileGrid() {
 
                   {/* Info */}
                   <Text style={styles.name}>{s.name}</Text>
+                  <Text style={styles.meta}>
+                    Hostel ID: {s.hostel_id || "—"}
+                  </Text>
+
                   <Text style={styles.meta}>USN: {s.usn || "N/A"}</Text>
                   <Text style={styles.meta}>Email: {s.email || "N/A"}</Text>
                   <Text style={styles.meta}>
