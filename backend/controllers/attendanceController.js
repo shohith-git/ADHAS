@@ -104,3 +104,108 @@ exports.getAttendanceByStudent = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// GET /api/attendance/summary
+// Returns array of { date, total_present, total_absent }
+exports.getDailySummary = async (req, res) => {
+  try {
+    const q = `
+      SELECT
+        date::date AS date,
+        COUNT(*) FILTER (WHERE LOWER(method) = 'present') AS total_present,
+        COUNT(*) FILTER (WHERE LOWER(method) = 'absent') AS total_absent
+      FROM attendance
+      GROUP BY date::date
+      ORDER BY date::date DESC;
+    `;
+    const result = await pool.query(q);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching attendance summary:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// GET /api/attendance/date/:date  (date as YYYY-MM-DD)
+exports.getAttendanceByDateFull = async (req, res) => {
+  try {
+    const { date } = req.params;
+    // Basic validation
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid date format (YYYY-MM-DD)" });
+    }
+
+    const q = `
+      SELECT
+        a.student_id,
+        u.name AS student_name,
+        u.email AS student_email,
+        sp.usn,
+        sp.room_no,
+        sp.hostel_id,
+        sp.dept_branch,
+        a.date,
+        a.time,
+        a.method
+      FROM attendance a
+      JOIN users u ON a.student_id = u.id
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      WHERE a.date::date = $1::date
+      ORDER BY a.time ASC;
+    `;
+    const result = await pool.query(q, [date]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching attendance by date:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// 🧾 Summary of attendance by date
+exports.getAttendanceSummary = async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        date,
+        COUNT(*) FILTER (WHERE method = 'Present') AS total_present,
+        COUNT(*) FILTER (WHERE method = 'Absent') AS total_absent
+      FROM attendance
+      GROUP BY date
+      ORDER BY date DESC;
+    `;
+    const result = await pool.query(query);
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching attendance summary:", err.message);
+    res.status(500).json({ message: "Error fetching attendance summary" });
+  }
+};
+
+// 🧍‍♂️ Detailed student attendance by date
+exports.getAttendanceByDate = async (req, res) => {
+  try {
+    const { date } = req.params;
+
+    const query = `
+      SELECT 
+        a.student_id,
+        u.name AS student_name,
+        sp.hostel_id,
+        sp.room_no,
+        a.method
+      FROM attendance a
+      JOIN users u ON u.id = a.student_id
+      LEFT JOIN student_profiles sp ON sp.user_id = a.student_id
+      WHERE a.date = $1
+      ORDER BY u.name ASC;
+    `;
+    const result = await pool.query(query, [date]);
+
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching attendance by date:", err.message);
+    res.status(500).json({ message: "Error fetching attendance by date" });
+  }
+};

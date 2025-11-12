@@ -12,27 +12,19 @@ import axios from "axios";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
-/**
- * FINAL STABLE ATTENDANCE PANEL
- * ✅ Search bar (Name/USN/Room)
- * ✅ Cross-platform notification (works on web)
- * ✅ Instant status update
- * ✅ Buttons freeze after marking
- */
-
 export default function AttendancePanel() {
   const router = useRouter();
   const [students, setStudents] = useState([]);
   const [attendanceList, setAttendanceList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [disabledButtons, setDisabledButtons] = useState({});
   const [searchText, setSearchText] = useState("");
-  const [message, setMessage] = useState(null); // for success banner
+  const [message, setMessage] = useState(null);
 
   const BACKEND = "http://10.69.232.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+  // 🔹 Fetch students + attendance records
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -53,33 +45,48 @@ export default function AttendancePanel() {
     }
   };
 
+  // 🟢 Refetch when the page regains focus
   useFocusEffect(
     useCallback(() => {
       fetchData();
     }, [])
   );
 
-  const normalizeDate = (dateStr) => {
-    if (!dateStr) return "";
-    return new Date(dateStr).toISOString().split("T")[0];
-  };
+  // 🕛 Auto refresh at midnight (real-world daily reset)
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const msUntilMidnight = nextMidnight.getTime() - now.getTime();
+
+    const timer = setTimeout(() => {
+      console.log("⏰ Auto-refreshing attendance at midnight...");
+      fetchData();
+    }, msUntilMidnight);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 🧮 Normalize to YYYY-MM-DD for date matching
+  const normalizeDate = (dateStr) =>
+    dateStr ? new Date(dateStr).toISOString().split("T")[0] : "";
 
   const today = new Date().toISOString().split("T")[0];
+
+  // 🧾 Build today's attendance map
   const todaysAttendance = attendanceList
     .filter((a) => normalizeDate(a.date) === today)
     .reduce((acc, a) => {
-      acc[a.student_id] = a;
+      acc[a.student_id] = a.method; // store method directly for quick lookup
       return acc;
     }, {});
 
+  // ✅ Mark attendance instantly
   const markAttendance = async (studentId, studentName, status) => {
     try {
-      setDisabledButtons((prev) => ({ ...prev, [studentId]: true }));
-
       const payload = {
         student_id: studentId,
         method: status,
-        location: "",
       };
 
       await axios.post(`${BACKEND}/api/attendance`, payload, {
@@ -89,38 +96,33 @@ export default function AttendancePanel() {
         },
       });
 
-      // ✅ Instant UI update
-      setAttendanceList((prev) => {
-        const filtered = prev.filter(
-          (a) =>
-            !(a.student_id === studentId && normalizeDate(a.date) === today)
-        );
-        const newRecord = {
+      // Update the local attendance map instantly
+      setAttendanceList((prev) => [
+        ...prev,
+        {
           student_id: studentId,
           date: new Date().toISOString(),
-          time: new Date().toISOString(),
           method: status,
-        };
-        return [newRecord, ...filtered];
-      });
+        },
+      ]);
 
-      // ✅ Temporary success message (non-blocking)
       setMessage(`✔ Marked ${studentName} as ${status}`);
       setTimeout(() => setMessage(null), 1800);
     } catch (err) {
       console.error("❌ Error marking attendance:", err);
       setMessage("⚠️ Error marking attendance. Try again.");
-      setDisabledButtons((prev) => ({ ...prev, [studentId]: false }));
       setTimeout(() => setMessage(null), 2000);
     }
   };
 
+  // 🔍 Filter students
   const filteredStudents = students.filter((s) => {
     const query = searchText.toLowerCase();
     return (
       s.name?.toLowerCase().includes(query) ||
       s.usn?.toLowerCase().includes(query) ||
-      s.room_no?.toLowerCase().includes(query)
+      s.room_no?.toLowerCase().includes(query) ||
+      s.hostel_id?.toString().includes(query)
     );
   });
 
@@ -134,27 +136,36 @@ export default function AttendancePanel() {
 
   return (
     <View style={styles.page}>
-      <Text style={styles.header}>Warden Attendance Panel</Text>
+      {/* 🔹 Header Row with Logs button */}
+      <View style={styles.headerRow}>
+        <Text style={styles.header}>Warden Attendance Panel</Text>
+        <TouchableOpacity
+          style={[styles.navBtn, { paddingHorizontal: 14 }]}
+          onPress={() => router.push("/warden/attendance-logs")}
+        >
+          <Text style={styles.navBtnText}>📁 Logs</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* ✅ Floating banner message */}
+      {/* ✅ Floating Message Banner */}
       {message && (
         <View style={styles.messageBanner}>
           <Text style={styles.messageText}>{message}</Text>
         </View>
       )}
 
-      {/* ✅ Search bar */}
+      {/* 🔍 Search */}
       <TextInput
-        placeholder="🔍 Search by name, USN, or room..."
+        placeholder="🔍 Search by name, hostel, or room..."
         style={styles.searchBar}
         value={searchText}
         onChangeText={setSearchText}
       />
 
-      {/* ✅ Student table */}
+      {/* 🧾 Student Table */}
       <ScrollView style={styles.scroll} contentContainerStyle={{ padding: 10 }}>
         <View style={styles.table}>
-          <View style={[styles.row, styles.headerRow]}>
+          <View style={[styles.row, styles.headerRowTable]}>
             <Text style={[styles.cell, { flex: 1 }]}>Hostel</Text>
             <Text style={[styles.cell, styles.colName]}>Name</Text>
             <Text style={[styles.cell, styles.colUSN]}>USN</Text>
@@ -169,25 +180,22 @@ export default function AttendancePanel() {
             </View>
           ) : (
             filteredStudents.map((s) => {
-              const att = todaysAttendance[s.id];
-              const status = att ? att.method : "Not marked";
-              const isPresent =
-                att && att.method && att.method.toLowerCase() === "present";
-              const isAbsent =
-                att && att.method && att.method.toLowerCase() === "absent";
-              const isDisabled = disabledButtons[s.id] || isPresent || isAbsent;
+              const method = todaysAttendance[s.id];
+              const isPresent = method === "Present";
+              const isAbsent = method === "Absent";
+              const isMarked = !!method;
 
               return (
                 <View key={s.id} style={styles.row}>
+                  <Text style={[styles.cell, { flex: 1 }]}>
+                    {s.hostel_id || "—"}
+                  </Text>
                   <Text style={[styles.cell, styles.colName]}>{s.name}</Text>
                   <Text style={[styles.cell, styles.colUSN]}>
                     {s.usn || "—"}
                   </Text>
                   <Text style={[styles.cell, styles.colRoom]}>
                     {s.room_no || "—"}
-                  </Text>
-                  <Text style={[styles.cell, { flex: 1 }]}>
-                    {s.hostel_id ? s.hostel_id.toString() : "—"}
                   </Text>
 
                   <Text
@@ -198,7 +206,7 @@ export default function AttendancePanel() {
                       isAbsent && { color: "#dc2626" },
                     ]}
                   >
-                    {status}
+                    {method || "Not marked"}
                   </Text>
 
                   <View style={[styles.cell, styles.colActions]}>
@@ -206,9 +214,9 @@ export default function AttendancePanel() {
                       style={[
                         styles.actionBtn,
                         styles.presentBtn,
-                        isDisabled && styles.disabledBtn,
+                        isMarked && styles.disabledBtn,
                       ]}
-                      disabled={isDisabled}
+                      disabled={isMarked}
                       onPress={() =>
                         markAttendance(s.id, s.name || "Student", "Present")
                       }
@@ -220,9 +228,9 @@ export default function AttendancePanel() {
                       style={[
                         styles.actionBtn,
                         styles.absentBtn,
-                        isDisabled && styles.disabledBtn,
+                        isMarked && styles.disabledBtn,
                       ]}
-                      disabled={isDisabled}
+                      disabled={isMarked}
                       onPress={() =>
                         markAttendance(s.id, s.name || "Student", "Absent")
                       }
@@ -237,18 +245,25 @@ export default function AttendancePanel() {
         </View>
       </ScrollView>
 
+      {/* 🔙 Back Button */}
       <TouchableOpacity
-        style={styles.navBtn}
+        style={styles.backBtn}
         onPress={() => router.push("/warden-dashboard")}
       >
-        <Text style={styles.navBtnText}>← Back to Dashboard</Text>
+        <Text style={styles.backText}>← Back to Dashboard</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
+/* ------------------------------ STYLES ------------------------------ */
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#f8fafc", padding: 16 },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   header: {
     fontSize: 22,
     fontWeight: "700",
@@ -288,7 +303,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#eef2ff",
     backgroundColor: "#fff",
   },
-  headerRow: { backgroundColor: "#f1f5f9" },
+  headerRowTable: { backgroundColor: "#f1f5f9" },
   cell: { paddingHorizontal: 6 },
   colName: { flex: 2, fontWeight: "600" },
   colUSN: { flex: 1 },
@@ -314,11 +329,18 @@ const styles = StyleSheet.create({
   emptyText: { color: "#64748b" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   navBtn: {
+    backgroundColor: "#2563eb",
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  navBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  backBtn: {
     marginTop: 10,
     backgroundColor: "#0b5cff",
     padding: 12,
     borderRadius: 10,
     alignItems: "center",
   },
-  navBtnText: { color: "#fff", fontWeight: "700" },
+  backText: { color: "#fff", fontWeight: "700" },
 });
