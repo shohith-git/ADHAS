@@ -23,7 +23,6 @@ const remarkRoutes = require("./routes/remarkRoutes");
 
 // 🛠️ Route mapping
 app.use("/api/users", userRoutes);
-app.use("/api/students", studentRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/complaints", complaintRoutes);
@@ -31,6 +30,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/remarks", remarkRoutes);
+app.use("/api/students", studentRoutes);
 
 // 🧪 Health Check
 app.get("/", (req, res) => {

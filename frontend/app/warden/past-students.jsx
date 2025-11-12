@@ -28,8 +28,11 @@ export default function PastStudents() {
       });
       setPastStudents(res.data || []);
     } catch (err) {
-      console.error("Error fetching past students:", err.response?.data || err);
-      alert("Failed to fetch student history");
+      console.error(
+        "❌ Error fetching past students:",
+        err.response?.data || err
+      );
+      alert("Failed to fetch past students");
     } finally {
       setLoading(false);
     }
@@ -66,10 +69,11 @@ export default function PastStudents() {
             >
               <Text style={styles.name}>{s.name}</Text>
               <Text style={styles.email}>{s.email}</Text>
-              <Text style={styles.role}>🎓 {s.role}</Text>
+              <Text style={styles.role}>🎓 {s.dept_branch || s.role}</Text>
               <Text style={styles.date}>
+                🕓{" "}
                 {s.left_at
-                  ? `Left on: ${new Date(s.left_at).toLocaleDateString()}`
+                  ? `Left on ${new Date(s.left_at).toLocaleDateString()}`
                   : "Left date unavailable"}
               </Text>
             </TouchableOpacity>
@@ -77,7 +81,7 @@ export default function PastStudents() {
         )}
       </ScrollView>
 
-      {/* Modal */}
+      {/* MODAL */}
       {selectedStudent && (
         <Modal
           visible={true}
@@ -87,22 +91,63 @@ export default function PastStudents() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
-              <Text style={styles.modalTitle}>{selectedStudent.name}</Text>
-              <Text style={styles.modalMeta}>📧 {selectedStudent.email}</Text>
-              <Text style={styles.modalMeta}>
-                🎓 Role: {selectedStudent.role}
-              </Text>
-              <Text style={styles.modalMeta}>
-                🏫 Domain: {selectedStudent.college_domain || "—"}
-              </Text>
-              <Text style={styles.modalDate}>
-                🕓{" "}
-                {selectedStudent.left_at
-                  ? `Left on ${new Date(
-                      selectedStudent.left_at
-                    ).toLocaleString()}`
-                  : "No record of leaving date"}
-              </Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.modalTitle}>{selectedStudent.name}</Text>
+                <Text style={styles.modalMeta}>📧 {selectedStudent.email}</Text>
+                <Text style={styles.modalMeta}>
+                  🧾 USN: {selectedStudent.usn || "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  🏫 Dept: {selectedStudent.dept_branch || "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  🎓 Year: {selectedStudent.year || "—"} | Batch:{" "}
+                  {selectedStudent.batch || "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  🏠 Room: {selectedStudent.room_no || "N/A"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  📱 Phone: {selectedStudent.phone_number || "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  ⚧ Gender: {selectedStudent.gender || "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  🎂 DOB:{" "}
+                  {selectedStudent.dob
+                    ? new Date(selectedStudent.dob).toLocaleDateString()
+                    : "—"}
+                </Text>
+                <Text style={styles.modalMeta}>
+                  🏡 Address: {selectedStudent.address || "—"}
+                </Text>
+                <Text style={styles.sectionHeader}>👨‍👩‍👧 Parents Info</Text>
+                <Text style={styles.modalMeta}>
+                  Father: {selectedStudent.father_name || "—"} (
+                  {selectedStudent.father_number || "—"})
+                </Text>
+                <Text style={styles.modalMeta}>
+                  Mother: {selectedStudent.mother_name || "—"} (
+                  {selectedStudent.mother_number || "—"})
+                </Text>
+                <Text style={styles.sectionHeader}>🗒️ Warden Remarks</Text>
+                <Text style={styles.remarkText}>
+                  {selectedStudent.warden_remarks || "No remarks recorded."}
+                </Text>
+                <Text style={styles.modalDate}>
+                  🕒 Joined:{" "}
+                  {selectedStudent.created_at
+                    ? new Date(selectedStudent.created_at).toLocaleDateString()
+                    : "—"}
+                </Text>
+                <Text style={styles.modalDate}>
+                  🔄 Left:{" "}
+                  {selectedStudent.left_at
+                    ? new Date(selectedStudent.left_at).toLocaleDateString()
+                    : "—"}
+                </Text>
+              </ScrollView>
 
               <TouchableOpacity
                 style={styles.closeBtn}
@@ -153,6 +198,7 @@ const styles = StyleSheet.create({
   email: { color: "#475569", marginVertical: 2 },
   role: { fontSize: 13, color: "#2563eb", fontWeight: "600" },
   date: { fontSize: 12, color: "#64748b", marginTop: 4 },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.35)",
@@ -162,18 +208,33 @@ const styles = StyleSheet.create({
   modalBox: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    width: "85%",
+    width: "88%",
+    maxHeight: "85%",
     padding: 20,
-    elevation: 6,
+    elevation: 8,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#0f172a",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   modalMeta: { color: "#475569", fontSize: 14, marginVertical: 3 },
-  modalDate: { color: "#334155", fontSize: 13, marginVertical: 8 },
+  modalDate: { color: "#334155", fontSize: 13, marginVertical: 5 },
+  sectionHeader: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0b5cff",
+    marginTop: 12,
+  },
+  remarkText: {
+    backgroundColor: "#f1f5f9",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 6,
+    fontSize: 13.5,
+    color: "#0f172a",
+  },
   closeBtn: {
     flexDirection: "row",
     backgroundColor: "#0b5cff",
