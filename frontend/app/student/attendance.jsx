@@ -1,3 +1,5 @@
+// adhas/frontend/app/student/attendance.jsx
+
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,13 +11,30 @@ import {
   Alert,
 } from "react-native";
 import axios from "axios";
-import { jwtDecode } from "jwt-decode";
 import { Calendar } from "react-native-calendars";
 import { useRouter } from "expo-router";
 
+/* ----------------------------------------------
+   SIMPLE JWT PAYLOAD DECODER (no jwt-decode needed)
+----------------------------------------------- */
+function decodeJwtPayload(token) {
+  try {
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+    const decoded = atob(padded);
+
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 export default function StudentAttendance() {
   const router = useRouter();
-
   const BACKEND = "http://10.69.232.21:5000";
 
   const [records, setRecords] = useState([]);
@@ -23,31 +42,43 @@ export default function StudentAttendance() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const [currentMonth, setCurrentMonth] = useState(
+    new Date().toISOString().slice(0, 7)
+  );
+
+  /* ----------------------------------------------
+     GET STUDENT ID FROM JWT
+  ----------------------------------------------- */
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   let student_id = null;
   if (token) {
-    try {
-      const decoded = jwtDecode(token);
-      student_id = decoded.id;
-    } catch {}
+    const payload = decodeJwtPayload(token);
+    if (payload && payload.id) student_id = payload.id;
   }
 
+  /* ----------------------------------------------
+     LOAD ATTENDANCE
+  ----------------------------------------------- */
   const loadAttendance = async () => {
     if (!student_id) return;
 
     try {
       setLoading(true);
+      setRecords([]);
+
       const res = await axios.get(
         `${BACKEND}/api/attendance/student/${student_id}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
       );
+
       setRecords(res.data || []);
     } catch (err) {
-      Alert.alert("Error", "Unable to load attendance.");
+      console.log("Attendance Error:", err?.response?.data || err);
+      Alert.alert("Error", "Unable to load attendance records.");
     } finally {
       setLoading(false);
     }
@@ -55,20 +86,30 @@ export default function StudentAttendance() {
 
   useEffect(() => {
     loadAttendance();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth]);
 
-  /* ------------------ Calendar Marking ------------------ */
-
+  /* ----------------------------------------------
+     CALENDAR MARKING (Present=Green, Absent=Red)
+  ----------------------------------------------- */
   const markedDates = {};
 
   records.forEach((r) => {
-    const isPresent = r.method === "Present";
+    if (!r?.date) return;
 
-    markedDates[r.date] = {
-      selected: true,
-      selectedColor: isPresent ? "#16a34a" : "#dc2626", // green/red fill
-      selectedTextColor: "#ffffff",
-    };
+    if (r.method === "Present") {
+      markedDates[r.date] = {
+        selected: true,
+        selectedColor: "#16a34a",
+        selectedTextColor: "#ffffff",
+      };
+    } else if (r.method === "Absent") {
+      markedDates[r.date] = {
+        selected: true,
+        selectedColor: "#dc2626",
+        selectedTextColor: "#ffffff",
+      };
+    }
   });
 
   if (selectedDate) {
@@ -76,12 +117,13 @@ export default function StudentAttendance() {
       ...(markedDates[selectedDate] || {}),
       selected: true,
       selectedColor: "#0b5cff",
-      selectedTextColor: "#fff",
+      selectedTextColor: "#ffffff",
     };
   }
 
-  /* ------------------ When Student Selects Date ------------------ */
-
+  /* ----------------------------------------------
+     DATE SELECT
+  ----------------------------------------------- */
   const onPressDate = (day) => {
     const date = day.dateString;
     setSelectedDate(date);
@@ -89,8 +131,28 @@ export default function StudentAttendance() {
     setSelectedRecord(rec || null);
   };
 
-  /* ------------------ Render UI ------------------ */
+  /* ----------------------------------------------
+     MONTH SUMMARY (Correct Logic)
+  ----------------------------------------------- */
+  const monthlyRecords = records.filter((r) =>
+    r.date?.startsWith(currentMonth)
+  );
 
+  const presentCount = monthlyRecords.filter(
+    (r) => r.method === "Present"
+  ).length;
+
+  const absentCount = monthlyRecords.filter(
+    (r) => r.method === "Absent"
+  ).length;
+
+  const total = presentCount + absentCount;
+
+  const percentage = total === 0 ? 0 : Math.round((presentCount / total) * 100);
+
+  /* ----------------------------------------------
+     UI
+  ----------------------------------------------- */
   return (
     <ScrollView style={styles.page} contentContainerStyle={{ padding: 18 }}>
       <Text style={styles.header}>📅 My Attendance</Text>
@@ -99,6 +161,10 @@ export default function StudentAttendance() {
       <View style={styles.card}>
         <Calendar
           onDayPress={onPressDate}
+          onMonthChange={(m) => {
+            const newMonth = `${m.year}-${String(m.month).padStart(2, "0")}`;
+            setCurrentMonth(newMonth);
+          }}
           markedDates={markedDates}
           theme={{
             todayTextColor: "#16a34a",
@@ -118,9 +184,7 @@ export default function StudentAttendance() {
               {new Date(selectedRecord.date).toDateString()}
             </Text>
 
-            <Text style={styles.meta}>
-              🕒 Time: {selectedRecord.time || "—"}
-            </Text>
+            <Text style={styles.meta}>🕒 Time: {selectedRecord.time}</Text>
 
             <View
               style={[
@@ -136,10 +200,35 @@ export default function StudentAttendance() {
             </View>
           </>
         ) : (
-          <Text style={styles.empty}>Tap a date to view attendance</Text>
+          <Text style={styles.empty}>
+            Tap a date on the calendar to see details
+          </Text>
         )}
       </View>
 
+      {/* MONTH SUMMARY */}
+      <View style={styles.card}>
+        <Text style={styles.summaryTitle}>📊 {currentMonth} Summary</Text>
+
+        <View style={styles.summaryRow}>
+          <View style={[styles.summaryBox, { backgroundColor: "#e6ffe6" }]}>
+            <Text style={styles.sumLabel}>Present</Text>
+            <Text style={styles.sumNum}>{presentCount}</Text>
+          </View>
+
+          <View style={[styles.summaryBox, { backgroundColor: "#ffe6e6" }]}>
+            <Text style={styles.sumLabel}>Absent</Text>
+            <Text style={styles.sumNum}>{absentCount}</Text>
+          </View>
+
+          <View style={[styles.summaryBox, { backgroundColor: "#e6f0ff" }]}>
+            <Text style={styles.sumLabel}>Attendance %</Text>
+            <Text style={styles.sumNum}>{percentage}%</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* BACK */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/student-dashboard")}
@@ -150,8 +239,9 @@ export default function StudentAttendance() {
   );
 }
 
-/* ------------------ STYLES ------------------ */
-
+/* ----------------------------------------------
+   STYLES
+----------------------------------------------- */
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#f8fafc" },
 
@@ -201,6 +291,33 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     textAlign: "center",
     fontSize: 14,
+  },
+
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 12,
+    color: "#0f172a",
+  },
+
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  summaryBox: {
+    width: "32%",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  sumLabel: { fontSize: 14, color: "#6b7280" },
+  sumNum: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginTop: 4,
+    color: "#0f172a",
   },
 
   backBtn: {

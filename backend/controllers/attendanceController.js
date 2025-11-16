@@ -202,3 +202,41 @@ exports.undoAttendance = async (req, res) => {
     });
   }
 };
+
+/* ---------------------------------------------------------
+   AUTO MARK ABSENT FOR STUDENTS WHO DID NOT MARK TODAY
+---------------------------------------------------------- */
+exports.autoMarkAbsent = async () => {
+  try {
+    // 1. Get all students
+    const allStudents = await pool.query(
+      "SELECT id FROM users WHERE role = 'student'"
+    );
+
+    const studentIds = allStudents.rows.map((s) => s.id);
+
+    // 2. Get today's attendance list
+    const presentToday = await pool.query(
+      "SELECT DISTINCT student_id FROM attendance WHERE date = CURRENT_DATE"
+    );
+
+    const presentIds = presentToday.rows.map((p) => p.student_id);
+
+    // 3. Students who did NOT mark attendance today
+    const absentees = studentIds.filter((id) => !presentIds.includes(id));
+
+    // 4. Insert absentees
+    for (const studentId of absentees) {
+      await pool.query(
+        `INSERT INTO attendance (student_id, date, time, method)
+         VALUES ($1, CURRENT_DATE, CURRENT_TIME, 'Absent')
+         ON CONFLICT (student_id, date) DO NOTHING`,
+        [studentId]
+      );
+    }
+
+    console.log(`✔ Auto-Absent Completed: ${absentees.length} students marked`);
+  } catch (err) {
+    console.error("❌ Auto-Absent Error:", err);
+  }
+};
