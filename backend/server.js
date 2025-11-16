@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// ⏰ Enable cron jobs (AUTO MARK ABSENT)
+require("./cron/autoAbsent");
+
 // 🔗 Import all routes
 const userRoutes = require("./routes/userRoutes");
 const studentRoutes = require("./routes/studentRoutes");

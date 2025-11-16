@@ -28,6 +28,7 @@ export default function Rooms() {
     eastSharing: "",
     westSharing: "",
   });
+
   const [manualForm, setManualForm] = useState({
     room_number: "",
     floor: "",
@@ -37,13 +38,12 @@ export default function Rooms() {
 
   // -------------------- TOAST ENGINE --------------------
   const [toastMessage, setToastMessage] = useState("");
-  const [toastIcon, setToastIcon] = useState("ℹ️"); // default
+  const [toastIcon, setToastIcon] = useState("ℹ️");
   const toastAnim = React.useRef(new Animated.Value(0)).current;
 
   const showToast = (msg = "", type = "info") => {
     if (!msg) return;
 
-    // choose emoji icon
     const icon =
       type === "success"
         ? "✔️"
@@ -74,7 +74,6 @@ export default function Rooms() {
 
   const BACKEND = "http://10.69.232.21:5000";
 
-  // Fetch rooms
   const fetchRooms = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -82,8 +81,8 @@ export default function Rooms() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setRooms(res.data);
-    } catch (error) {
-      showToast("Unable to load rooms. Check connection.", "error");
+    } catch {
+      showToast("Unable to load rooms.", "error");
     } finally {
       setLoading(false);
     }
@@ -93,7 +92,6 @@ export default function Rooms() {
     fetchRooms();
   }, []);
 
-  // Auto-generate rooms
   const autoGenerateRooms = async () => {
     if (
       !form.fromRoom ||
@@ -102,7 +100,7 @@ export default function Rooms() {
       !form.eastSharing ||
       !form.westSharing
     ) {
-      showToast("Fill all fields before generating rooms.", "warning");
+      showToast("Fill all fields.", "warning");
       return;
     }
 
@@ -120,20 +118,13 @@ export default function Rooms() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      showToast(
-        `Generated rooms ${form.fromRoom} to ${form.toRoom}.`,
-        "success"
-      );
+      showToast(`Generated rooms successfully.`, "success");
       fetchRooms();
     } catch {
-      showToast(
-        `Failed to generate rooms ${form.fromRoom} to ${form.toRoom}.`,
-        "error"
-      );
+      showToast(`Failed to generate rooms.`, "error");
     }
   };
 
-  // Add individual room
   const addRoom = async () => {
     if (
       !manualForm.room_number ||
@@ -141,7 +132,7 @@ export default function Rooms() {
       !manualForm.side ||
       !manualForm.sharing
     ) {
-      showToast("Enter complete room details.", "warning");
+      showToast("Enter all fields.", "warning");
       return;
     }
 
@@ -154,11 +145,10 @@ export default function Rooms() {
       showToast(`Room ${manualForm.room_number} added.`, "success");
       fetchRooms();
     } catch {
-      showToast(`Unable to add room ${manualForm.room_number}.`, "error");
+      showToast(`Unable to add room.`, "error");
     }
   };
 
-  // Edit room
   const handleEdit = (room) => {
     setEditRoomId(room.id);
     setEditForm(room);
@@ -171,15 +161,14 @@ export default function Rooms() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      showToast(`Room ${editForm.room_number} updated.`, "success");
+      showToast(`Updated successfully.`, "success");
       setEditRoomId(null);
       fetchRooms();
     } catch {
-      showToast(`Could not update room ${editForm.room_number}.`, "error");
+      showToast(`Failed to update room.`, "error");
     }
   };
 
-  // Delete single room
   const deleteRoom = async (id) => {
     const selected = rooms.find((r) => r.id === id);
 
@@ -192,14 +181,13 @@ export default function Rooms() {
       showToast(`Room ${selected?.room_number} deleted.`, "success");
       fetchRooms();
     } catch {
-      showToast(`Failed to delete room ${selected?.room_number}.`, "error");
+      showToast(`Error deleting room.`, "error");
     }
   };
 
-  // Delete all rooms
   const deleteAllRooms = async () => {
     if (rooms.length === 0) {
-      showToast("No rooms available to delete.", "warning");
+      showToast("No rooms to delete.", "warning");
       return;
     }
 
@@ -209,7 +197,7 @@ export default function Rooms() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      showToast(`${rooms.length} rooms removed.`, "success");
+      showToast("All rooms deleted.", "success");
       fetchRooms();
     } catch {
       showToast("Failed to delete all rooms.", "error");
@@ -226,7 +214,7 @@ export default function Rooms() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* ---------- FLOATING TOAST UI ---------- */}
+      {/* Floating toast UI */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -253,12 +241,10 @@ export default function Rooms() {
         <Text style={styles.toastIcon}>{toastIcon}</Text>
         <Text style={styles.toastText}>{toastMessage}</Text>
       </Animated.View>
-      {/* --------------------------------------- */}
 
       <ScrollView style={styles.page}>
         <Text style={styles.pageTitle}>🏠 Room Management</Text>
 
-        {/* Auto generate + Add room forms */}
         <View style={styles.formRow}>
           <FormAutoGenerate
             form={form}
@@ -273,7 +259,6 @@ export default function Rooms() {
           />
         </View>
 
-        {/* Wings */}
         <WingList
           rooms={rooms}
           wing="east"
@@ -284,6 +269,7 @@ export default function Rooms() {
           saveEdit={saveEdit}
           deleteRoom={deleteRoom}
           setEditRoomId={setEditRoomId}
+          showToast={showToast}
         />
 
         <WingList
@@ -296,9 +282,9 @@ export default function Rooms() {
           saveEdit={saveEdit}
           deleteRoom={deleteRoom}
           setEditRoomId={setEditRoomId}
+          showToast={showToast}
         />
 
-        {/* Delete All */}
         <View style={{ marginTop: 20 }}>
           <Button
             title="🗑️ Delete All Rooms"
@@ -307,7 +293,6 @@ export default function Rooms() {
           />
         </View>
 
-        {/* Back btn */}
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.push("/warden-dashboard")}
@@ -330,6 +315,7 @@ function WingList({
   saveEdit,
   deleteRoom,
   setEditRoomId,
+  showToast,
 }) {
   return (
     <>
@@ -351,6 +337,7 @@ function WingList({
               saveEdit={saveEdit}
               deleteRoom={deleteRoom}
               setEditRoomId={setEditRoomId}
+              showToast={showToast} // FIXED
             />
           ))}
       </View>
@@ -441,6 +428,7 @@ function RoomCard({
   saveEdit,
   deleteRoom,
   setEditRoomId,
+  showToast, // FIXED
 }) {
   const full = room.occupied >= room.sharing;
 
@@ -462,7 +450,7 @@ function RoomCard({
             onChangeText={(t) => setEditForm({ ...editForm, floor: t })}
           />
 
-          <Text style={styles.editLabel}>Side (East/West):</Text>
+          <Text style={styles.editLabel}>Side:</Text>
           <TextInput
             style={styles.input}
             value={editForm.side}
@@ -476,7 +464,6 @@ function RoomCard({
             onChangeText={(t) => setEditForm({ ...editForm, sharing: t })}
           />
 
-          {/* Save + Cancel */}
           <View style={styles.dualBtnRow}>
             <TouchableOpacity style={styles.saveBtn} onPress={saveEdit}>
               <Text style={styles.saveText}>💾 Save</Text>
@@ -485,10 +472,12 @@ function RoomCard({
             <TouchableOpacity
               style={styles.cancelBtn}
               onPress={() => {
-                const rn = editForm.room_number;
+                showToast(
+                  `Cancelled editing ${editForm.room_number}.`,
+                  "warning"
+                );
                 setEditForm({});
                 setEditRoomId(null);
-                showToast(`Edit cancelled for room ${rn}.`, "warning");
               }}
             >
               <Text style={styles.cancelText}>❌ Cancel</Text>
@@ -541,31 +530,20 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
-
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-
     borderWidth: 1,
     borderColor: "#e5e7eb",
-
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
-
     zIndex: 9999,
   },
-  toastIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  toastText: {
-    fontWeight: "700",
-    fontSize: 15,
-    color: "#0f172a",
-  },
+  toastIcon: { fontSize: 18, marginRight: 8 },
+  toastText: { fontWeight: "700", fontSize: 15, color: "#0f172a" },
 
   page: { backgroundColor: "#f9fafb", padding: 20 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -596,7 +574,12 @@ const styles = StyleSheet.create({
 
   inputBlock: { marginBottom: 10 },
 
-  label: { fontWeight: "600", color: "#1e293b", marginBottom: 4, marginTop: 6 },
+  label: {
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 4,
+    marginTop: 6,
+  },
 
   editLabel: {
     fontSize: 13,
