@@ -1,63 +1,61 @@
 const pool = require("../db");
 
-// 🟢 Mark attendance (duplicate-safe + clean timestamps)
+/* ---------------------------------------------------------
+   MARK ATTENDANCE (Final Version)
+---------------------------------------------------------- */
 exports.markAttendance = async (req, res) => {
   try {
-    console.log("📩 Incoming body:", req.body);
-
     const student_id = req.body.student_id ?? req.body.studentId;
-    const method = req.body.method || "";
+    const method = (req.body.method || "").trim();
 
-    if (!student_id || !method) {
-      return res.status(400).json({
-        message: "student_id and method are required",
-      });
+    if (!student_id || !["Present", "Absent"].includes(method)) {
+      return res.status(400).json({ message: "Invalid student_id or method" });
     }
 
-    // Check if student exists
-    const checkStudent = await pool.query(
-      "SELECT id FROM users WHERE id = $1 AND role = 'student'",
+    // Check student exists
+    const student = await pool.query(
+      `SELECT u.id, sp.hostel_id
+       FROM users u
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
+       WHERE u.id = $1 AND u.role = 'student'`,
       [student_id]
     );
-    if (checkStudent.rows.length === 0) {
+
+    if (student.rows.length === 0) {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    // Prevent duplicate marking for same date
-    const existing = await pool.query(
-      "SELECT id FROM attendance WHERE student_id = $1 AND date = CURRENT_DATE",
-      [student_id]
-    );
-    if (existing.rows.length > 0) {
-      return res
-        .status(200)
-        .json({ message: "Already marked today", data: existing.rows[0] });
-    }
-
-    // Insert new attendance safely (no location)
+    // Insert attendance with UNIQUE constraint
     const query = `
       INSERT INTO attendance (student_id, date, time, method)
       VALUES ($1, CURRENT_DATE, CURRENT_TIME, $2)
-      RETURNING student_id, date, time, method;
+      ON CONFLICT (student_id, date) DO NOTHING
+      RETURNING 
+        student_id,
+        TO_CHAR(date, 'YYYY-MM-DD') AS date,
+        TO_CHAR(time, 'HH24:MI') AS time,
+        method;
     `;
+
     const result = await pool.query(query, [student_id, method]);
 
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(500).json({ message: "Insert failed unexpectedly" });
+    if (result.rows.length === 0) {
+      return res.status(200).json({ message: "Already marked today" });
     }
 
-    console.log("✅ Attendance inserted:", result.rows[0]);
-    res.status(201).json({
+    return res.status(201).json({
       message: "Attendance marked successfully",
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("❌ Error in markAttendance:", err);
-    res.status(500).json({ message: err.message });
+    console.error("❌ markAttendance error:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// 🟡 Get all attendance (for warden/admin)
+/* ---------------------------------------------------------
+   GET ALL ATTENDANCE (For table)
+---------------------------------------------------------- */
 exports.getAllAttendance = async (req, res) => {
   try {
     const query = `
@@ -70,142 +68,137 @@ exports.getAllAttendance = async (req, res) => {
         sp.room_no,
         sp.hostel_id,
         sp.dept_branch,
-        a.date,
-        a.time,
+        TO_CHAR(a.date, 'YYYY-MM-DD') AS date,
+        TO_CHAR(a.time, 'HH24:MI') AS time,
         a.method
       FROM attendance a
       JOIN users u ON a.student_id = u.id
       LEFT JOIN student_profiles sp ON sp.user_id = u.id
-      WHERE u.role = 'student'
       ORDER BY a.date DESC, a.time DESC;
     `;
+
     const result = await pool.query(query);
     res.status(200).json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching attendance:", err);
+    console.error("❌ getAllAttendance error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// 🔵 Get attendance by student ID
+/* ---------------------------------------------------------
+   GET ONE STUDENT ATTENDANCE
+---------------------------------------------------------- */
 exports.getAttendanceByStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
+
     const query = `
-      SELECT date, time, method
+      SELECT 
+        TO_CHAR(date, 'YYYY-MM-DD') AS date,
+        TO_CHAR(time, 'HH24:MI') AS time,
+        method
       FROM attendance
       WHERE student_id = $1
       ORDER BY date DESC, time DESC;
     `;
+
     const result = await pool.query(query, [studentId]);
     res.status(200).json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching student attendance:", err);
+    console.error("❌ getAttendanceByStudent error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// GET /api/attendance/summary
-// Returns array of { date, total_present, total_absent }
-exports.getDailySummary = async (req, res) => {
-  try {
-    const q = `
-      SELECT
-        date::date AS date,
-        COUNT(*) FILTER (WHERE LOWER(method) = 'present') AS total_present,
-        COUNT(*) FILTER (WHERE LOWER(method) = 'absent') AS total_absent
-      FROM attendance
-      GROUP BY date::date
-      ORDER BY date::date DESC;
-    `;
-    const result = await pool.query(q);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("❌ Error fetching attendance summary:", err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-// GET /api/attendance/date/:date  (date as YYYY-MM-DD)
-exports.getAttendanceByDateFull = async (req, res) => {
-  try {
-    const { date } = req.params;
-    // Basic validation
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid date format (YYYY-MM-DD)" });
-    }
-
-    const q = `
-      SELECT
-        a.student_id,
-        u.name AS student_name,
-        u.email AS student_email,
-        sp.usn,
-        sp.room_no,
-        sp.hostel_id,
-        sp.dept_branch,
-        a.date,
-        a.time,
-        a.method
-      FROM attendance a
-      JOIN users u ON a.student_id = u.id
-      LEFT JOIN student_profiles sp ON sp.user_id = u.id
-      WHERE a.date::date = $1::date
-      ORDER BY a.time ASC;
-    `;
-    const result = await pool.query(q, [date]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("❌ Error fetching attendance by date:", err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-// 🧾 Summary of attendance by date
+/* ---------------------------------------------------------
+   SUMMARY
+---------------------------------------------------------- */
 exports.getAttendanceSummary = async (req, res) => {
   try {
     const query = `
-      SELECT 
-        date,
+      SELECT
+        TO_CHAR(date, 'YYYY-MM-DD') AS date,
         COUNT(*) FILTER (WHERE method = 'Present') AS total_present,
         COUNT(*) FILTER (WHERE method = 'Absent') AS total_absent
       FROM attendance
       GROUP BY date
       ORDER BY date DESC;
     `;
+
     const result = await pool.query(query);
     res.status(200).json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching attendance summary:", err.message);
-    res.status(500).json({ message: "Error fetching attendance summary" });
+    console.error("❌ getAttendanceSummary error:", err);
+    res.status(500).json({ message: "Error fetching summary" });
   }
 };
 
-// 🧍‍♂️ Detailed student attendance by date
+/* ---------------------------------------------------------
+   GET DATE DETAILS
+---------------------------------------------------------- */
 exports.getAttendanceByDate = async (req, res) => {
   try {
     const { date } = req.params;
 
     const query = `
-      SELECT 
+      SELECT
         a.student_id,
         u.name AS student_name,
-        sp.hostel_id,
+        sp.usn,
         sp.room_no,
-        a.method
+        sp.hostel_id,
+        sp.dept_branch,
+        a.method,
+        TO_CHAR(a.time, 'HH24:MI') AS time,
+        TO_CHAR(a.date, 'YYYY-MM-DD') AS date
       FROM attendance a
       JOIN users u ON u.id = a.student_id
       LEFT JOIN student_profiles sp ON sp.user_id = a.student_id
       WHERE a.date = $1
       ORDER BY u.name ASC;
     `;
-    const result = await pool.query(query, [date]);
 
+    const result = await pool.query(query, [date]);
     res.status(200).json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching attendance by date:", err.message);
-    res.status(500).json({ message: "Error fetching attendance by date" });
+    console.error("❌ getAttendanceByDate error:", err);
+    res.status(500).json({ message: "Error fetching day attendance" });
+  }
+};
+
+/* ---------------------------------------------------------
+   UNDO TODAY'S ATTENDANCE (Final Version)
+---------------------------------------------------------- */
+exports.undoAttendance = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    if (!studentId) {
+      return res.status(400).json({ message: "Invalid student ID" });
+    }
+
+    const deleteQuery = `
+      DELETE FROM attendance
+      WHERE student_id = $1 AND date = CURRENT_DATE
+      RETURNING student_id;
+    `;
+
+    const result = await pool.query(deleteQuery, [studentId]);
+
+    // If no record found for today
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "No attendance found to undo for today",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Undo successful",
+    });
+  } catch (err) {
+    console.error("❌ Undo attendance error:", err);
+    return res.status(500).json({
+      message: "Error undoing attendance",
+    });
   }
 };

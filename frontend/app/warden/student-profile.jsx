@@ -9,6 +9,7 @@ import {
   StyleSheet,
   TextInput,
   Dimensions,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
@@ -27,7 +28,43 @@ export default function StudentProfileGrid() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // ✅ Fetch students
+  /* ------------------ TOAST SYSTEM ------------------ */
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastIcon, setToastIcon] = useState("ℹ️");
+  const toastAnim = React.useRef(new Animated.Value(0)).current;
+
+  const showToast = (msg = "", type = "info") => {
+    if (!msg) return;
+
+    const icon =
+      type === "success"
+        ? "✔️"
+        : type === "error"
+        ? "❌"
+        : type === "warning"
+        ? "⚠️"
+        : "ℹ️";
+
+    setToastIcon(icon);
+    setToastMessage(msg);
+
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+
+    setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    }, 3000);
+  };
+  /* -------------------------------------------------- */
+
+  // Fetch students
   const fetchStudents = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/students`, {
@@ -53,7 +90,7 @@ export default function StudentProfileGrid() {
 
       setStudents(sorted);
     } catch (err) {
-      console.error("❌ Error fetching students:", err.message);
+      showToast("Unable to fetch student data.", "error");
     } finally {
       setLoading(false);
     }
@@ -69,8 +106,48 @@ export default function StudentProfileGrid() {
     return block === "E" ? "#3b82f6" : "#10b981"; // blue for East, green for West
   };
 
+  const filteredStudents = students.filter((s) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      s.name?.toLowerCase().includes(q) ||
+      String(s.hostel_id || "")
+        .toLowerCase()
+        .includes(q) ||
+      s.room_no?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <ScrollView style={styles.page} contentContainerStyle={{ padding: 15 }}>
+      {/* TOAST UI */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.toast,
+          {
+            opacity: toastAnim,
+            transform: [
+              {
+                translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-40, 0],
+                }),
+              },
+              {
+                scale: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <Text style={styles.toastIcon}>{toastIcon}</Text>
+        <Text style={styles.toastText}>{toastMessage}</Text>
+      </Animated.View>
+
+      {/* Title */}
       <Text style={styles.pageTitle}>🎓 Student Profiles</Text>
 
       {/* Search Bar */}
@@ -81,10 +158,19 @@ export default function StudentProfileGrid() {
           placeholder="Search by Id, Name, Room Number."
           placeholderTextColor="#94a3b8"
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={(t) => {
+            setSearchQuery(t);
+            if (t.length === 0) showToast("Search cleared.", "info");
+          }}
         />
+
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
+          <TouchableOpacity
+            onPress={() => {
+              setSearchQuery("");
+              showToast("Search cleared.", "info");
+            }}
+          >
             <Ionicons name="close-circle" size={20} color="#64748b" />
           </TouchableOpacity>
         )}
@@ -96,82 +182,71 @@ export default function StudentProfileGrid() {
           <ActivityIndicator size="large" color="#2563eb" />
           <Text style={styles.loadingText}>Loading profiles...</Text>
         </View>
-      ) : students.length === 0 ? (
-        <Text style={styles.emptyText}>No students found.</Text>
+      ) : filteredStudents.length === 0 ? (
+        <>
+          <Text style={styles.emptyText}>No matching students found.</Text>
+          {showToast("No results match your search.", "warning")}
+        </>
       ) : (
         <View style={styles.grid}>
-          {students
-            .filter((s) => {
-              const q = searchQuery.toLowerCase();
-              return (
-                s.name?.toLowerCase().includes(q) ||
-                String(s.hostel_id || "")
-                  .toLowerCase()
-                  .includes(q) ||
-                s.room_no?.toLowerCase().includes(q)
-              );
-            })
+          {filteredStudents.map((s) => {
+            const accent = getAccent(s.room_no);
+            return (
+              <TouchableOpacity
+                key={s.id}
+                style={[styles.card, { borderTopColor: accent }]}
+                onPress={() => {
+                  showToast(`Opening profile for ${s.name}`, "success");
+                  router.push(`/warden/student-profile/${s.id}`);
+                }}
+              >
+                {/* Accent Bar */}
+                <View
+                  style={[styles.cardHeader, { backgroundColor: accent }]}
+                />
 
-            .map((s) => {
-              const accent = getAccent(s.room_no);
-              return (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[styles.card, { borderTopColor: accent }]}
-                  onPress={() => router.push(`/warden/student-profile/${s.id}`)}
-                >
-                  {/* Header Accent */}
-                  <View
-                    style={[styles.cardHeader, { backgroundColor: accent }]}
+                {/* Profile Photo */}
+                {s.profile_photo ? (
+                  <Image
+                    source={{ uri: s.profile_photo }}
+                    style={styles.avatar}
                   />
-
-                  {/* Profile Picture */}
-                  {s.profile_photo ? (
-                    <Image
-                      source={{ uri: s.profile_photo }}
-                      style={styles.avatar}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.avatarPlaceholder,
-                        { backgroundColor: accent + "20" },
-                      ]}
-                    >
-                      <Ionicons
-                        name="person-outline"
-                        size={40}
-                        color={accent}
-                      />
-                    </View>
-                  )}
-
-                  {/* Info */}
-                  <Text style={styles.name}>{s.name}</Text>
-                  <Text style={styles.meta}>
-                    Hostel ID: {s.hostel_id || "—"}
-                  </Text>
-
-                  <Text style={styles.meta}>USN: {s.usn || "N/A"}</Text>
-                  <Text style={styles.meta}>Email: {s.email || "N/A"}</Text>
-                  <Text style={styles.meta}>
-                    Dept: {s.dept_branch || "N/A"}
-                  </Text>
-                  <View style={[styles.roomBadge, { backgroundColor: accent }]}>
-                    <Text style={styles.roomText}>
-                      {s.room_no ? s.room_no : "Unallocated"}
-                    </Text>
+                ) : (
+                  <View
+                    style={[
+                      styles.avatarPlaceholder,
+                      { backgroundColor: accent + "20" },
+                    ]}
+                  >
+                    <Ionicons name="person-outline" size={40} color={accent} />
                   </View>
-                </TouchableOpacity>
-              );
-            })}
+                )}
+
+                {/* Info */}
+                <Text style={styles.name}>{s.name}</Text>
+                <Text style={styles.meta}>Hostel ID: {s.hostel_id || "—"}</Text>
+                <Text style={styles.meta}>USN: {s.usn || "N/A"}</Text>
+                <Text style={styles.meta}>Email: {s.email || "N/A"}</Text>
+                <Text style={styles.meta}>Dept: {s.dept_branch || "N/A"}</Text>
+
+                <View style={[styles.roomBadge, { backgroundColor: accent }]}>
+                  <Text style={styles.roomText}>
+                    {s.room_no ? s.room_no : "Unallocated"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
-      {/* ✅ Back to Dashboard Button */}
+      {/* Back to Dashboard */}
       <TouchableOpacity
         style={styles.dashboardBtn}
-        onPress={() => router.push("/warden-dashboard")}
+        onPress={() => {
+          showToast("Returning to dashboard…", "info");
+          router.push("/warden-dashboard");
+        }}
       >
         <Ionicons name="home-outline" size={18} color="#fff" />
         <Text style={styles.dashboardText}>Go to Dashboard</Text>
@@ -183,6 +258,39 @@ export default function StudentProfileGrid() {
 /* ------------------------------ STYLES ------------------------------ */
 const styles = StyleSheet.create({
   page: { backgroundColor: "#f8fafc", flex: 1 },
+
+  /* Toast */
+  toast: {
+    position: "absolute",
+    top: 16,
+    left: "50%",
+    width: 340,
+    marginLeft: -170,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+    zIndex: 9999,
+  },
+  toastIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  toastText: {
+    fontWeight: "700",
+    fontSize: 15,
+    color: "#0f172a",
+  },
+
   pageTitle: {
     fontSize: 24,
     fontWeight: "700",
@@ -203,10 +311,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
     elevation: 2,
   },
   searchInput: {
@@ -221,6 +325,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -231,10 +336,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderTopWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
     elevation: 3,
     alignItems: "center",
   },
@@ -280,6 +381,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 12,
   },
+
   emptyText: {
     textAlign: "center",
     color: "#94a3b8",
@@ -287,7 +389,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  /* ✅ Dashboard Button */
+  /* Dashboard Button */
   dashboardBtn: {
     flexDirection: "row",
     alignItems: "center",

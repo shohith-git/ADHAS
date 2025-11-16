@@ -1,4 +1,4 @@
-// backend/routes/rooms.js
+// backend/routes/roomRoutes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -172,46 +172,49 @@ router.put("/:id", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* ==========================================================
-   ❌ DELETE SINGLE ROOM
+   ❌ DELETE SINGLE ROOM (Deep Debug Version)
    DELETE /api/rooms/:id
 ========================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
+  console.log("🔍 DELETE /api/rooms/:id HIT");
+  console.log("➡ Params:", req.params);
+  console.log("➡ Headers:", req.headers);
+
   try {
     const { id } = req.params;
+
+    // Extra safety logs
+    console.log("🧪 Checking room existence...");
+    const exists = await pool.query("SELECT * FROM rooms WHERE id=$1", [id]);
+    console.log("↪ Found rows:", exists.rows.length);
+
+    if (exists.rows.length === 0) {
+      console.log("🚫 Room not found");
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    console.log("🗑️ Deleting room now...");
     const result = await pool.query(
       "DELETE FROM rooms WHERE id=$1 RETURNING *",
       [id]
     );
 
-    if (result.rows.length === 0)
-      return res
-        .status(404)
-        .json({ message: "⚠️ Room not found or already deleted." });
+    console.log("✅ Deleted:", result.rows[0]);
 
-    console.log(`🗑️ Deleted room ${result.rows[0].room_number}`);
     res.json({
-      message: `✅ Room ${result.rows[0].room_number} deleted successfully.`,
+      message: `Room ${result.rows[0].room_number} deleted successfully`,
     });
   } catch (error) {
-    console.error("❌ Error deleting room:", error);
-    res
-      .status(500)
-      .json({ message: "❌ Failed to delete room. Try again later." });
-  }
-});
+    console.log("❌ DELETE ERROR DETAILS:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
 
-/* ==========================================================
-   🧹 DELETE ALL ROOMS
-   DELETE /api/rooms
-========================================================== */
-router.delete("/", authMiddleware, isWarden, async (req, res) => {
-  try {
-    const result = await pool.query("DELETE FROM rooms");
-    console.log(`🧹 All rooms deleted by warden`);
-    res.json({ message: "🧹 All rooms deleted successfully." });
-  } catch (error) {
-    console.error("❌ Error deleting all rooms:", error);
-    res.status(500).json({ message: "❌ Failed to delete all rooms." });
+    res.status(500).json({
+      message: "Server error while deleting room",
+      error: error.message,
+    });
   }
 });
 

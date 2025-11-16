@@ -45,6 +45,7 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
 
 /* =====================================================
    🧾 Get all past students (with full data)
+   NOTE: removed sp.warden_remarks (column didn't exist)
 ===================================================== */
 router.get("/past", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -59,7 +60,7 @@ router.get("/past", authMiddleware, isWarden, async (req, res) => {
           year,
           batch,
           room_no,
-          hostel_id,  -- 🏢 added hostel_id
+          hostel_id,
           phone_number,
           gender,
           dob,
@@ -69,7 +70,6 @@ router.get("/past", authMiddleware, isWarden, async (req, res) => {
           mother_name,
           mother_number,
           profile_photo,
-          warden_remarks,
           role,
           college_domain,
           created_at,
@@ -95,7 +95,7 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
       `SELECT 
         u.id, u.name, u.email, u.role, u.created_at,
         sp.usn, sp.dept_branch, sp.year, sp.batch,
-        sp.room_no, sp.profile_photo, sp.hostel_id   -- 🏢 added hostel_id
+        sp.room_no, sp.profile_photo, sp.hostel_id
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.role = 'student'
@@ -111,6 +111,7 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
 
 /* =====================================================
    🧍 Get single student (with full profile info)
+   NOTE: removed sp.warden_remarks (column didn't exist)
 ===================================================== */
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
@@ -128,10 +129,10 @@ router.get("/:id", authMiddleware, async (req, res) => {
     const student = await pool.query(
       `SELECT 
           u.id, u.name, u.email, u.role,
-          sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no, sp.hostel_id,  -- 🏢 added hostel_id
+          sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no, sp.hostel_id,
           sp.phone_number, sp.gender, sp.dob, sp.address,
           sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
-          sp.profile_photo, sp.warden_remarks, sp.created_at, sp.updated_at
+          sp.profile_photo, sp.created_at, sp.updated_at
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'student'`,
@@ -151,6 +152,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
 /* =====================================================
    📝 Add or update student profile (Warden only)
+   (keeps hostel_id handling and room occupancy logic)
 ===================================================== */
 router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
@@ -171,7 +173,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       mother_name,
       mother_number,
       profile_photo,
-      hostel_id, // 🏢 added hostel_id
+      hostel_id,
     } = req.body;
 
     await client.query("BEGIN");
@@ -295,6 +297,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
 
 /* =====================================================
    ❌ Delete student (Move to past_students first)
+   NOTE: removed sp.warden_remarks usage here as well
 ===================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
@@ -310,9 +313,9 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
     const result = await client.query(
       `SELECT 
          u.id AS user_id, u.name, u.email, u.role, u.college_domain,
-         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,  -- 🏢 added hostel_id
+         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
          sp.phone_number, sp.gender, sp.dob, sp.address, sp.father_name, sp.father_number,
-         sp.mother_name, sp.mother_number, sp.profile_photo, sp.batch, sp.warden_remarks
+         sp.mother_name, sp.mother_number, sp.profile_photo, sp.batch
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id=$1 AND u.role='student'`,
@@ -326,23 +329,23 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
 
     await client.query(
       `INSERT INTO past_students (
-        user_id, name, email, usn, dept_branch, year, room_no, hostel_id,  -- 🏢 added hostel_id
+        user_id, name, email, usn, dept_branch, year, room_no, hostel_id,
         phone_number, gender, dob, address, father_name, father_number, mother_name,
-        mother_number, profile_photo, batch, warden_remarks,
+        mother_number, profile_photo, batch,
         role, college_domain, created_at, left_at
       )
       SELECT 
         u.id, u.name, u.email, sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
         sp.phone_number, sp.gender, sp.dob, sp.address,
         sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
-        sp.profile_photo, sp.batch, sp.warden_remarks,
+        sp.profile_photo, sp.batch,
         u.role, u.college_domain, u.created_at, NOW()
       FROM users u
       LEFT JOIN student_profiles sp ON sp.user_id = u.id
       WHERE u.id = $1 AND u.role = 'student'
       ON CONFLICT (email)
       DO UPDATE SET
-        hostel_id=EXCLUDED.hostel_id,  -- 🏢 added hostel_id
+        hostel_id=EXCLUDED.hostel_id,
         name=EXCLUDED.name,
         dept_branch=EXCLUDED.dept_branch,
         year=EXCLUDED.year,
@@ -357,7 +360,6 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
         mother_number=EXCLUDED.mother_number,
         profile_photo=EXCLUDED.profile_photo,
         batch=EXCLUDED.batch,
-        warden_remarks=EXCLUDED.warden_remarks,
         role=EXCLUDED.role,
         college_domain=EXCLUDED.college_domain,
         created_at=EXCLUDED.created_at,
