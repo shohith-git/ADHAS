@@ -1,28 +1,44 @@
 const express = require("express");
 const router = express.Router();
-const attendanceController = require("../controllers/attendanceController");
+
+const attendance = require("../controllers/attendanceController");
 const { authMiddleware, isWarden } = require("../middleware/authMiddleware");
 
+// Mark attendance
+router.post("/", authMiddleware, isWarden, attendance.markAttendance);
+
+// Get all attendance
+router.get("/", authMiddleware, isWarden, attendance.getAllAttendance);
+
+// Summary
 router.get(
   "/summary",
   authMiddleware,
   isWarden,
-  attendanceController.getDailySummary
+  attendance.getAttendanceSummary
 );
+
+// Get by date
 router.get(
   "/date/:date",
   authMiddleware,
   isWarden,
-  attendanceController.getAttendanceByDateFull
+  attendance.getAttendanceByDate
 );
 
-// Mark attendance
-router.post("/", attendanceController.markAttendance);
+// Get student by ID
+router.get(
+  "/student/:studentId",
+  authMiddleware,
+  attendance.getAttendanceByStudent
+);
 
-// Get all attendance (warden/admin)
-router.get("/", attendanceController.getAllAttendance);
-
-// Get attendance by student
-router.get("/:studentId", attendanceController.getAttendanceByStudent);
+// 🔥 UNDO today's attendance
+router.delete(
+  "/undo/:studentId",
+  authMiddleware,
+  isWarden,
+  attendance.undoAttendance
+);
 
 module.exports = router;
