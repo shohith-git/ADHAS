@@ -2,6 +2,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+require("dotenv").config({ path: __dirname + "/.env" });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,6 +24,7 @@ const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const remarkRoutes = require("./routes/remarkRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 // 🛠️ Route mapping
 app.use("/api/users", userRoutes);
@@ -34,6 +36,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/remarks", remarkRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/ai", aiRoutes);
 
 // 🧪 Health Check
 app.get("/", (req, res) => {

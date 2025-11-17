@@ -16,9 +16,9 @@ import {
   FileText,
   History,
   CalendarCheck2,
-  LogOut,
   UserRound,
-} from "lucide-react"; // ✅ added icon for Student Profile
+  Bot,
+} from "lucide-react";
 
 export default function WardenDashboard() {
   const router = useRouter();
@@ -26,29 +26,21 @@ export default function WardenDashboard() {
   // 🔒 Logout handler
   const handleLogout = async () => {
     try {
-      // Remove token from both storages
       await AsyncStorage.removeItem("token");
       if (typeof window !== "undefined") localStorage.removeItem("token");
 
-      // Confirm logout
       if (Platform.OS === "web") {
         const confirmLogout = window.confirm(
           "Are you sure you want to logout?"
         );
-        if (confirmLogout) {
-          console.log("✅ Logged out successfully");
-          router.replace("/login");
-        }
+        if (confirmLogout) router.replace("/login");
       } else {
         Alert.alert("Logout", "Are you sure you want to logout?", [
           { text: "Cancel", style: "cancel" },
           {
             text: "Logout",
             style: "destructive",
-            onPress: () => {
-              console.log("✅ Logged out successfully");
-              router.replace("/login");
-            },
+            onPress: () => router.replace("/login"),
           },
         ]);
       }
@@ -109,6 +101,18 @@ export default function WardenDashboard() {
           <FileText size={36} color="#dc2626" />
           <Text style={styles.cardTitle}>Complaints</Text>
           <Text style={styles.cardDesc}>Review & update complaint status</Text>
+        </TouchableOpacity>
+
+        {/* 🤖 AI Assistant (Correct position inside grid) */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push("/warden/ai-assistant")}
+        >
+          <Bot size={36} color="#3b82f6" />
+          <Text style={styles.cardTitle}>AI Assistant</Text>
+          <Text style={styles.cardDesc}>
+            Analyze attendance, rooms, complaints
+          </Text>
         </TouchableOpacity>
 
         {/* 🕓 Past Students */}

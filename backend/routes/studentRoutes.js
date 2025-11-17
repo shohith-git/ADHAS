@@ -44,39 +44,42 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🧾 Get all past students (with full data)
-   NOTE: removed sp.warden_remarks (column didn't exist)
+   🧾 Get all past students WITH their complaints
 ===================================================== */
 router.get("/past", authMiddleware, isWarden, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT 
-          id,
-          user_id,
-          name,
-          email,
-          usn,
-          dept_branch,
-          year,
-          batch,
-          room_no,
-          hostel_id,
-          phone_number,
-          gender,
-          dob,
-          address,
-          father_name,
-          father_number,
-          mother_name,
-          mother_number,
-          profile_photo,
-          role,
-          college_domain,
-          created_at,
-          left_at
-       FROM past_students
-       ORDER BY left_at DESC NULLS LAST`
-    );
+    const result = await pool.query(`
+      SELECT 
+        ps.*,
+
+        -- All complaints made by this student
+        (
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', c.id,
+                'title', c.title,
+                'description', c.description,
+                'status', c.status,
+                'created_at', c.created_at,
+                'updated_at', c.updated_at
+              )
+            ), '[]'
+          )
+          FROM complaints c
+          WHERE c.user_id = ps.user_id
+        ) AS complaints,
+
+        -- Total number of complaints
+        (
+          SELECT COUNT(*)
+          FROM complaints c
+          WHERE c.user_id = ps.user_id
+        ) AS complaint_count
+
+      FROM past_students ps
+      ORDER BY ps.left_at DESC NULLS LAST
+    `);
 
     console.log(`✅ Past students fetched: ${result.rows.length}`);
     res.json(result.rows);
@@ -294,90 +297,99 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
     client.release();
   }
 });
-
 /* =====================================================
-   ❌ Delete student (Move to past_students first)
-   NOTE: removed sp.warden_remarks usage here as well
+   🧾 Get all past students WITH complaints + remarks
 ===================================================== */
-router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
-  const client = await pool.connect();
+router.get("/past", authMiddleware, isWarden, async (req, res) => {
   try {
-    const { id } = req.params;
-
-    if (!id || id === "null" || isNaN(Number(id))) {
-      return res.status(400).json({ message: "Invalid student ID" });
-    }
-
-    await client.query("BEGIN");
-
-    const result = await client.query(
-      `SELECT 
-         u.id AS user_id, u.name, u.email, u.role, u.college_domain,
-         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
-         sp.phone_number, sp.gender, sp.dob, sp.address, sp.father_name, sp.father_number,
-         sp.mother_name, sp.mother_number, sp.profile_photo, sp.batch
-       FROM users u
-       LEFT JOIN student_profiles sp ON sp.user_id = u.id
-       WHERE u.id=$1 AND u.role='student'`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Student not found" });
-    }
-
-    await client.query(
-      `INSERT INTO past_students (
-        user_id, name, email, usn, dept_branch, year, room_no, hostel_id,
-        phone_number, gender, dob, address, father_name, father_number, mother_name,
-        mother_number, profile_photo, batch,
-        role, college_domain, created_at, left_at
-      )
+    const result = await pool.query(`
       SELECT 
-        u.id, u.name, u.email, sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
-        sp.phone_number, sp.gender, sp.dob, sp.address,
-        sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
-        sp.profile_photo, sp.batch,
-        u.role, u.college_domain, u.created_at, NOW()
-      FROM users u
-      LEFT JOIN student_profiles sp ON sp.user_id = u.id
-      WHERE u.id = $1 AND u.role = 'student'
-      ON CONFLICT (email)
-      DO UPDATE SET
-        hostel_id=EXCLUDED.hostel_id,
-        name=EXCLUDED.name,
-        dept_branch=EXCLUDED.dept_branch,
-        year=EXCLUDED.year,
-        room_no=EXCLUDED.room_no,
-        phone_number=EXCLUDED.phone_number,
-        gender=EXCLUDED.gender,
-        dob=EXCLUDED.dob,
-        address=EXCLUDED.address,
-        father_name=EXCLUDED.father_name,
-        father_number=EXCLUDED.father_number,
-        mother_name=EXCLUDED.mother_name,
-        mother_number=EXCLUDED.mother_number,
-        profile_photo=EXCLUDED.profile_photo,
-        batch=EXCLUDED.batch,
-        role=EXCLUDED.role,
-        college_domain=EXCLUDED.college_domain,
-        created_at=EXCLUDED.created_at,
-        left_at=EXCLUDED.left_at`,
-      [id]
-    );
+        ps.*,
 
-    await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
-    await client.query("DELETE FROM users WHERE id=$1", [id]);
+        /* ----------------------------------------------
+           Complaints array for this student
+        ---------------------------------------------- */
+        (
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', c.id,
+                'title', c.title,
+                'description', c.description,
+                'status', c.status,
+                'created_at', c.created_at,
+                'updated_at', c.updated_at
+              )
+            ), '[]'
+          )
+          FROM complaints c
+          WHERE c.user_id = ps.user_id
+        ) AS complaints,
 
-    await client.query("COMMIT");
-    res.json({ message: "Student moved to past_students ✅" });
+        /* ----------------------------------------------
+           Count of complaints
+        ---------------------------------------------- */
+        (
+          SELECT COUNT(*)
+          FROM complaints c
+          WHERE c.user_id = ps.user_id
+        ) AS complaint_count,
+
+        /* ----------------------------------------------
+           Student remarks (table: student_remarks)
+        ---------------------------------------------- */
+        (
+          SELECT COALESCE(
+            json_agg(
+              json_build_object(
+                'id', sr.id,
+                'remark', sr.remark,
+                'warden_id', sr.warden_id,
+                'created_at', sr.created_at
+              )
+            ), '[]'
+          )
+          FROM student_remarks sr
+          WHERE sr.student_id = ps.user_id
+        ) AS student_remarks,
+
+        /* ----------------------------------------------
+           Count of individual remarks from table
+        ---------------------------------------------- */
+        (
+          SELECT COUNT(*)
+          FROM student_remarks sr
+          WHERE sr.student_id = ps.user_id
+        ) AS remark_count,
+
+        /* ----------------------------------------------
+           Combined all remarks (from past_students + remark table)
+        ---------------------------------------------- */
+        (
+          SELECT TRIM(
+            BOTH ' | ' FROM
+            CONCAT(
+              COALESCE(ps.warden_remarks, ''),
+              ' | ',
+              COALESCE(
+                (
+                  SELECT string_agg(sr.remark, ' | ')
+                  FROM student_remarks sr
+                  WHERE sr.student_id = ps.user_id
+                ), ''
+              )
+            )
+          )
+        ) AS all_remarks
+
+      FROM past_students ps
+      ORDER BY ps.left_at DESC NULLS LAST
+    `);
+
+    res.json(result.rows);
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    console.error("❌ Error deleting student:", err);
-    res.status(500).json({ message: "Error deleting student" });
-  } finally {
-    client.release();
+    console.error("❌ Error fetching past students:", err);
+    res.status(500).json({ message: "Error fetching past students" });
   }
 });
 
