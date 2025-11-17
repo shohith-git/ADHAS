@@ -21,6 +21,7 @@ export default function PastStudents() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+  // Fetch past students with complaints + remarks from backend
   const fetchPastStudents = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/students/past`, {
@@ -28,7 +29,7 @@ export default function PastStudents() {
       });
       setPastStudents(res.data || []);
     } catch (err) {
-      console.error("❌ Error fetching past students:", err);
+      console.error("Error fetching past students:", err);
       alert("Failed to fetch past students");
     } finally {
       setLoading(false);
@@ -48,10 +49,11 @@ export default function PastStudents() {
     );
 
   return (
-    <View style={styles.page}>
+    <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.title}>🎓 Past Students</Text>
 
-      <ScrollView contentContainerStyle={styles.grid}>
+      {/* Grid */}
+      <View style={styles.grid}>
         {pastStudents.length === 0 ? (
           <Text style={{ color: "#64748b", marginTop: 10 }}>
             No past students found.
@@ -79,7 +81,7 @@ export default function PastStudents() {
             </TouchableOpacity>
           ))
         )}
-      </ScrollView>
+      </View>
 
       {/* ===================== MODAL ===================== */}
       {selectedStudent && (
@@ -92,46 +94,42 @@ export default function PastStudents() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
               <ScrollView showsVerticalScrollIndicator={false}>
-                {/* NAME + BASICS */}
+                {/* NAME */}
                 <Text style={styles.modalTitle}>{selectedStudent.name}</Text>
 
+                {/* BASIC INFO */}
+                <Text style={styles.modalMeta}>📧 {selectedStudent.email}</Text>
                 <Text style={styles.modalMeta}>
-                  🏢 Hostel ID: {selectedStudent.hostel_id || "—"}
-                </Text>
-                <Text style={styles.modalMeta}>
-                  📧 Email: {selectedStudent.email}
+                  🏢 Hostel: {selectedStudent.hostel_id || "—"}
                 </Text>
                 <Text style={styles.modalMeta}>
                   🧾 USN: {selectedStudent.usn || "—"}
                 </Text>
                 <Text style={styles.modalMeta}>
-                  🏫 Dept: {selectedStudent.dept_branch || "—"}
-                </Text>
-                <Text style={styles.modalMeta}>
-                  🎓 Year: {selectedStudent.year || "—"} | Batch:{" "}
-                  {selectedStudent.batch || "—"}
+                  🎓 {selectedStudent.dept_branch || "—"} | Year:{" "}
+                  {selectedStudent.year || "—"}
                 </Text>
                 <Text style={styles.modalMeta}>
                   🏠 Room: {selectedStudent.room_no || "N/A"}
                 </Text>
                 <Text style={styles.modalMeta}>
-                  📱 Phone: {selectedStudent.phone_number || "—"}
+                  📱 {selectedStudent.phone_number || "—"}
                 </Text>
                 <Text style={styles.modalMeta}>
-                  ⚧ Gender: {selectedStudent.gender || "—"}
+                  ⚧ {selectedStudent.gender || "—"}
                 </Text>
                 <Text style={styles.modalMeta}>
-                  🎂 DOB:{" "}
+                  🎂{" "}
                   {selectedStudent.dob
                     ? new Date(selectedStudent.dob).toLocaleDateString()
                     : "—"}
                 </Text>
                 <Text style={styles.modalMeta}>
-                  🏡 Address: {selectedStudent.address || "—"}
+                  🏡 {selectedStudent.address || "—"}
                 </Text>
 
-                {/* PARENTS INFO */}
-                <Text style={styles.sectionHeader}>👨‍👩‍👧 Parents Info</Text>
+                {/* PARENTS */}
+                <Text style={styles.sectionHeader}>👨‍👩‍👧 Parents</Text>
                 <Text style={styles.modalMeta}>
                   Father: {selectedStudent.father_name || "—"} (
                   {selectedStudent.father_number || "—"})
@@ -141,21 +139,69 @@ export default function PastStudents() {
                   {selectedStudent.mother_number || "—"})
                 </Text>
 
-                {/* WARDEN REMARKS */}
-                <Text style={styles.sectionHeader}>🗒️ Warden Remarks</Text>
+                {/* OVERALL REMARK SUMMARY */}
+                <Text style={styles.sectionHeader}>
+                  📝 Overall Remarks (Summary)
+                </Text>
                 <View style={styles.remarkBox}>
                   <Text style={styles.remarkText}>
-                    {selectedStudent.warden_remarks || "No remarks recorded."}
+                    {selectedStudent.all_remarks &&
+                    selectedStudent.all_remarks.trim() !== ""
+                      ? selectedStudent.all_remarks
+                      : "No remarks recorded."}
                   </Text>
                 </View>
 
-                {/* JOIN/LEFT DATES */}
+                {/* INDIVIDUAL REMARK ITEMS */}
+                <Text style={styles.sectionHeader}>
+                  🗒️ Warden Remarks ({selectedStudent.remark_count || 0})
+                </Text>
+
+                {selectedStudent.student_remarks &&
+                selectedStudent.student_remarks.length > 0 ? (
+                  selectedStudent.student_remarks.map((r) => (
+                    <View key={r.id} style={styles.remarkItem}>
+                      <Text style={styles.remarkText}>• {r.remark}</Text>
+                      <Text style={styles.remarkDate}>
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.modalMeta}>No remarks available.</Text>
+                )}
+
+                {/* COMPLAINT LIST */}
+                <Text style={styles.sectionHeader}>
+                  📢 Complaints ({selectedStudent.complaint_count || 0})
+                </Text>
+
+                {selectedStudent.complaints &&
+                selectedStudent.complaints.length > 0 ? (
+                  selectedStudent.complaints.map((c, index) => (
+                    <View key={c.id} style={styles.complaintItem}>
+                      <Text style={styles.complaintTitle}>
+                        #{index + 1} {c.title}
+                      </Text>
+                      <Text style={styles.modalMeta}>{c.description}</Text>
+                      <Text style={styles.modalMeta}>Status: {c.status}</Text>
+                      <Text style={styles.remarkDate}>
+                        Raised: {new Date(c.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.modalMeta}>No complaints available.</Text>
+                )}
+
+                {/* JOINED / LEFT */}
                 <Text style={styles.modalDate}>
                   🕒 Joined:{" "}
                   {selectedStudent.created_at
                     ? new Date(selectedStudent.created_at).toLocaleDateString()
                     : "—"}
                 </Text>
+
                 <Text style={styles.modalDate}>
                   🔄 Left:{" "}
                   {selectedStudent.left_at
@@ -164,7 +210,6 @@ export default function PastStudents() {
                 </Text>
               </ScrollView>
 
-              {/* CLOSE BUTTON */}
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={() => setSelectedStudent(null)}
@@ -177,31 +222,38 @@ export default function PastStudents() {
         </Modal>
       )}
 
-      {/* BACK BUTTON */}
+      {/* Back Button */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/warden-dashboard")}
       >
         <Text style={styles.backBtnText}>← Back to Dashboard</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
-/* ===================== STYLES ===================== */
+/* ===================== Styles ===================== */
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
+  page: {
+    backgroundColor: "#f9fafb",
+    padding: 20,
+    paddingBottom: 40,
+  },
+
   title: {
     fontSize: 24,
     fontWeight: "700",
     color: "#0b5cff",
     marginBottom: 15,
   },
+
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+
   card: {
     width: "31%",
     backgroundColor: "#fff",
@@ -212,6 +264,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     elevation: 3,
   },
+
   name: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
   metaText: { fontSize: 13, color: "#475569", marginTop: 2 },
   email: { color: "#475569", marginVertical: 2 },
@@ -224,6 +277,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   modalBox: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -232,14 +286,17 @@ const styles = StyleSheet.create({
     padding: 20,
     elevation: 8,
   },
+
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 6,
   },
+
   modalMeta: { color: "#475569", fontSize: 14, marginVertical: 3 },
   modalDate: { color: "#334155", fontSize: 13, marginVertical: 5 },
+
   sectionHeader: {
     fontSize: 15,
     fontWeight: "700",
@@ -247,6 +304,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 4,
   },
+
   remarkBox: {
     backgroundColor: "#f8fafc",
     borderLeftWidth: 4,
@@ -256,11 +314,44 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 10,
   },
+
   remarkText: {
     color: "#0f172a",
     fontSize: 14,
     lineHeight: 20,
   },
+
+  remarkItem: {
+    marginBottom: 10,
+    padding: 10,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#0b5cff",
+  },
+
+  remarkDate: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 3,
+  },
+
+  complaintItem: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: "#eef2ff",
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#6366f1",
+  },
+
+  complaintTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+
   closeBtn: {
     flexDirection: "row",
     backgroundColor: "#0b5cff",
@@ -270,7 +361,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginTop: 15,
   },
+
   closeText: { color: "#fff", fontWeight: "700", marginLeft: 5 },
+
   backBtn: {
     marginTop: 20,
     backgroundColor: "#0b5cff",
@@ -278,6 +371,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
+
   backBtnText: { color: "#fff", fontWeight: "700" },
+
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

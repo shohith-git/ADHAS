@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  ScrollView,
 } from "react-native";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,7 +23,7 @@ export default function Complaints() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // ✅ Fetch complaints
+  // Fetch complaints
   const fetchComplaints = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/complaints`, {
@@ -30,7 +31,7 @@ export default function Complaints() {
       });
       setComplaints(res.data);
     } catch (err) {
-      console.error("❌ Error fetching complaints:", err.response?.data || err);
+      console.error("Error fetching complaints:", err.response?.data || err);
       Alert.alert("Error", "Failed to load complaints.");
     } finally {
       setLoading(false);
@@ -41,7 +42,7 @@ export default function Complaints() {
     fetchComplaints();
   }, []);
 
-  // ✅ Update complaint status
+  // Update complaint status
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
@@ -54,15 +55,15 @@ export default function Complaints() {
           },
         }
       );
-      Alert.alert("✅ Updated", `Status changed to "${newStatus}"`);
+      Alert.alert("Updated", `Status changed to "${newStatus}"`);
       fetchComplaints();
     } catch (err) {
-      console.error("❌ Error updating complaint status:", err);
+      console.error("Error updating complaint status:", err);
       Alert.alert("Error", "Failed to update status");
     }
   };
 
-  // ✅ Status color helper
+  // Status color helper
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
       case "resolved":
@@ -86,10 +87,9 @@ export default function Complaints() {
     );
 
   return (
-    <View style={styles.page}>
+    <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.title}>📋 Student Complaints</Text>
 
-      {/* ✅ Grid of complaints (unchanged layout) */}
       <View style={styles.grid}>
         {complaints.length === 0 ? (
           <Text style={{ color: "#64748b", marginTop: 20 }}>
@@ -99,7 +99,6 @@ export default function Complaints() {
           complaints.map((c) => {
             const style = getStatusStyle(c.status || "pending");
 
-            // formatted dates
             const createdOn = c.created_at
               ? new Date(c.created_at).toLocaleDateString("en-IN", {
                   day: "2-digit",
@@ -136,17 +135,16 @@ export default function Complaints() {
                   🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
                 </Text>
 
-                {/* 🕒 Complaint Raised and Last Updated */}
                 <View style={styles.dateRow}>
                   <Ionicons name="time-outline" size={13} color="#475569" />
                   <Text style={styles.dateText}>Raised: {createdOn}</Text>
                 </View>
+
                 <View style={styles.dateRow}>
                   <Ionicons name="refresh-outline" size={13} color="#475569" />
                   <Text style={styles.dateText}>Updated: {updatedOn}</Text>
                 </View>
 
-                {/* Status badge */}
                 <View
                   style={[
                     styles.statusBadge,
@@ -163,7 +161,7 @@ export default function Complaints() {
         )}
       </View>
 
-      {/* ✅ Complaint detail modal (unchanged) */}
+      {/* Complaint Modal */}
       {selectedComplaint && (
         <Modal
           visible={true}
@@ -179,12 +177,14 @@ export default function Complaints() {
                 {selectedComplaint.room_no || "N/A"}
               </Text>
               <Text style={styles.modalMeta}>📧 {selectedComplaint.email}</Text>
+
               <Text style={styles.modalDesc}>
                 {selectedComplaint.description}
               </Text>
 
               <View style={styles.modalStatusRow}>
                 <Text style={styles.modalLabel}>Change Status:</Text>
+
                 <Picker
                   selectedValue={selectedComplaint.status}
                   style={styles.picker}
@@ -199,7 +199,7 @@ export default function Complaints() {
                   <Picker.Item label="Pending" value="pending" />
                   <Picker.Item label="In Progress" value="in-progress" />
                   <Picker.Item label="Resolved" value="resolved" />
-                  <Picker.Item label="Denied ❌" value="denied" />
+                  <Picker.Item label="Denied" value="denied" />
                 </Picker>
               </View>
 
@@ -221,23 +221,30 @@ export default function Complaints() {
       >
         <Text style={styles.backBtnText}>← Back to Dashboard</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
+  page: {
+    backgroundColor: "#f9fafb",
+    padding: 20,
+    paddingBottom: 40,
+  },
+
   title: {
     fontSize: 24,
     fontWeight: "700",
     color: "#0b5cff",
     marginBottom: 15,
   },
+
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+
   card: {
     width: "31%",
     backgroundColor: "#fff",
@@ -248,18 +255,22 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     elevation: 3,
   },
+
   name: { fontWeight: "700", fontSize: 16, color: "#0f172a" },
   meta: { fontSize: 13, color: "#475569", marginVertical: 2 },
+
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 3,
   },
+
   dateText: {
     fontSize: 12,
     color: "#475569",
     marginLeft: 5,
   },
+
   statusBadge: {
     alignSelf: "flex-start",
     paddingVertical: 4,
@@ -267,13 +278,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 6,
   },
+
   statusText: { fontWeight: "700", fontSize: 12 },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
+
   modalBox: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -281,27 +295,34 @@ const styles = StyleSheet.create({
     padding: 20,
     elevation: 6,
   },
+
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 8,
   },
+
   modalMeta: { color: "#475569", fontSize: 13, marginVertical: 2 },
+
   modalDesc: {
     color: "#334155",
     fontSize: 14,
     marginVertical: 10,
     lineHeight: 20,
   },
+
   modalStatusRow: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 10,
     justifyContent: "space-between",
   },
+
   modalLabel: { fontWeight: "600", color: "#1e293b", fontSize: 14 },
+
   picker: { height: 40, width: 160 },
+
   closeBtn: {
     flexDirection: "row",
     backgroundColor: "#0b5cff",
@@ -311,11 +332,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginTop: 15,
   },
+
   closeText: {
     color: "#fff",
     fontWeight: "700",
     marginLeft: 5,
   },
+
   backBtn: {
     backgroundColor: "#0b5cff",
     paddingVertical: 12,
@@ -323,8 +346,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
+
   backBtnText: { color: "#fff", fontWeight: "700" },
+
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
   studentHostel: {
     fontSize: 13,
     color: "#1e3a8a",
