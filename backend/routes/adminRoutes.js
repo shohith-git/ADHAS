@@ -37,22 +37,12 @@ router.get("/users", async (req, res) => {
 
 //
 // ─────────────────────────────────────────────
-// 🧩 ADMIN: VIEW DELETED STUDENTS (past_students)
+// 🧩 ADMIN: VIEW DELETED STUDENTS (student_history)
 // ─────────────────────────────────────────────
 //
 
 router.get("/deleted-students", async (req, res) => {
   try {
-    const colCheck = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns
-      WHERE table_name='past_students'
-      AND column_name IN ('left_at','left_on')
-    `);
-
-    const leftColumn =
-      colCheck.rows.length > 0 ? colCheck.rows[0].column_name : "left_at";
-
     const deletedQuery = `
       SELECT 
         id,
@@ -60,10 +50,10 @@ router.get("/deleted-students", async (req, res) => {
         email,
         role,
         college_domain,
-        ${leftColumn} AS left_at,
+        left_at,
         true AS is_deleted
-      FROM past_students
-      ORDER BY ${leftColumn} DESC;
+      FROM student_history
+      ORDER BY left_at DESC;
     `;
 
     const result = await pool.query(deletedQuery);
@@ -87,14 +77,13 @@ router.post("/register-warden", async (req, res) => {
     if (!name || !email || !password)
       return res.status(400).json({ message: "All fields are required" });
 
-    // Check if already registered
     const check = await pool.query("SELECT * FROM users WHERE email=$1", [
       email,
     ]);
+
     if (check.rows.length > 0)
       return res.status(409).json({ message: "Warden already registered" });
 
-    // Hash password (important!)
     const hashed = await bcrypt.hash(password, 10);
 
     const query = `
@@ -134,8 +123,7 @@ router.get("/complaints", async (req, res) => {
         TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
       FROM complaints c
       JOIN users u 
-        ON u.id = c.user_id 
-        OR u.id = c.student_id
+        ON u.id = c.user_id OR u.id = c.student_id
       WHERE u.role='student'
       ORDER BY c.created_at DESC;
     `;
