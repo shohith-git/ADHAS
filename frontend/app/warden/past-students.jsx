@@ -13,18 +13,6 @@ import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-/**
- * Past Students
- * - Full profile inside modal (vertical scroll)
- * - Remarks horizontal scroll
- * - Complaints horizontal scroll
- * - Edit button removed
- *
- * Important: when a student is moved to past_students the original
- * student id is stored as `user_id`. Use that `user_id` for fetching
- * complaints and remarks (falls back to `id` if user_id is missing).
- */
-
 export default function PastStudents() {
   const [pastStudents, setPastStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,10 +26,12 @@ export default function PastStudents() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  /* ---------- fetch list of past students ---------- */
+  /* ================================================
+     FETCH ALL PAST STUDENTS
+  ================================================= */
   const fetchPastStudents = async () => {
     try {
-      const res = await axios.get(`${BACKEND}/api/students/past`, {
+      const res = await axios.get(`${BACKEND}/api/students/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setPastStudents(res.data || []);
@@ -57,44 +47,53 @@ export default function PastStudents() {
     fetchPastStudents();
   }, []);
 
-  /* ---------- open modal ---------- */
+  /* ================================================
+     OPEN MODAL — LOAD REMARKS & COMPLAINTS PROPERLY
+     Priority:
+     1. Use stored JSON (remarks, complaints)
+     2. Else fallback to API (active student case)
+  ================================================= */
   const openStudentModal = async (student) => {
     setSelectedStudent(student);
     setDetailsLoading(true);
 
-    // The past_students record stores original students' id under user_id.
-    // Prefer that for fetching complaints/remarks. Fall back to id.
     const idForFetch = student.user_id ?? student.id;
 
-    try {
-      const [compRes, remRes] = await Promise.all([
-        axios
-          .get(`${BACKEND}/api/complaints/student/${idForFetch}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          .catch(() => ({ data: [] })), // fallback in case of error
-
-        axios
-          .get(`${BACKEND}/api/remarks/${idForFetch}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          .catch(() => ({ data: [] })),
-      ]);
-
-      setComplaints(compRes.data || []);
-      setRemarks(remRes.data || []);
-    } catch (err) {
-      console.error("❌ Failed loading student details:", err);
-      setComplaints([]);
-      setRemarks([]);
-    } finally {
-      setDetailsLoading(false);
+    // ------------ REMARKS ------------
+    if (student.remarks && Array.isArray(student.remarks)) {
+      setRemarks(student.remarks);
+    } else {
+      try {
+        const remRes = await axios.get(`${BACKEND}/api/remarks/${idForFetch}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setRemarks(remRes.data || []);
+      } catch {
+        setRemarks([]);
+      }
     }
+
+    // ------------ COMPLAINTS ------------
+    if (student.complaints && Array.isArray(student.complaints)) {
+      setComplaints(student.complaints);
+    } else {
+      try {
+        const compRes = await axios.get(
+          `${BACKEND}/api/complaints/student/${idForFetch}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setComplaints(compRes.data || []);
+      } catch {
+        setComplaints([]);
+      }
+    }
+
+    setDetailsLoading(false);
   };
 
   const fmtDate = (d) => {
     try {
-      return d ? new Date(d).toLocaleDateString() : "—";
+      return d ? new Date(d).toLocaleDateString("en-IN") : "—";
     } catch {
       return "—";
     }
@@ -152,15 +151,12 @@ export default function PastStudents() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 14 }}
               >
-                {/* Header (Edit removed) */}
                 <View style={styles.headerRow}>
                   <View>
                     <Text style={styles.modalTitle}>
                       {selectedStudent.name}
                     </Text>
-                    <Text style={styles.subTitle}>
-                      {selectedStudent.email || "—"}
-                    </Text>
+                    <Text style={styles.subTitle}>{selectedStudent.email}</Text>
                   </View>
                 </View>
 
@@ -222,7 +218,7 @@ export default function PastStudents() {
                   </Text>
                 </View>
 
-                {/* REMARKS — horizontal scroll */}
+                {/* REMARKS */}
                 <View style={[styles.sectionCard, styles.shadowCard]}>
                   <Text style={styles.sectionHeader}>🗒️ Warden Remarks</Text>
 
@@ -235,7 +231,6 @@ export default function PastStudents() {
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       snapToInterval={280}
-                      decelerationRate="fast"
                       contentContainerStyle={{ paddingVertical: 6 }}
                     >
                       {remarks.map((r) => (
@@ -260,7 +255,7 @@ export default function PastStudents() {
                   )}
                 </View>
 
-                {/* COMPLAINTS — horizontal scroll */}
+                {/* COMPLAINTS */}
                 <View style={[styles.sectionCard, styles.shadowCard]}>
                   <Text style={styles.sectionHeader}>⚠️ Complaints</Text>
 
@@ -273,20 +268,20 @@ export default function PastStudents() {
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       snapToInterval={300}
-                      decelerationRate="fast"
                       contentContainerStyle={{ paddingVertical: 6 }}
                     >
                       {complaints.map((c) => {
-                        let bgColor = "#fde68a";
-                        let textColor = "#92400e";
+                        const getColors = (status) => {
+                          if (!status) return ["#fde68a", "#92400e"];
+                          status = status.toLowerCase();
+                          if (status === "resolved")
+                            return ["#bbf7d0", "#065f46"];
+                          if (status === "denied")
+                            return ["#fecaca", "#991b1b"];
+                          return ["#fde68a", "#92400e"];
+                        };
 
-                        if (c.status === "resolved") {
-                          bgColor = "#bbf7d0";
-                          textColor = "#065f46";
-                        } else if (c.status === "denied") {
-                          bgColor = "#fecaca";
-                          textColor = "#991b1b";
-                        }
+                        const [bgColor, textColor] = getColors(c.status);
 
                         return (
                           <View
@@ -305,8 +300,7 @@ export default function PastStudents() {
                               Raised: {fmtDate(c.created_at)}
                             </Text>
                             <Text style={styles.dateText}>
-                              Updated:{" "}
-                              {c.updated_at ? fmtDate(c.updated_at) : "—"}
+                              Updated: {fmtDate(c.updated_at)}
                             </Text>
 
                             <View
@@ -332,7 +326,6 @@ export default function PastStudents() {
                 </View>
               </ScrollView>
 
-              {/* CLOSE */}
               <TouchableOpacity
                 style={styles.closeBtn}
                 onPress={() => {
@@ -349,7 +342,6 @@ export default function PastStudents() {
         </Modal>
       )}
 
-      {/* BACK BUTTON */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/warden-dashboard")}
@@ -418,8 +410,6 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: "700", color: "#0f172a" },
   subTitle: { fontSize: 13, color: "#475569" },
 
-  /* 🎯 Removed edit styles */
-
   sectionCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -458,18 +448,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  roomBadge: {
-    color: "#fff",
-    fontWeight: "700",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    overflow: "hidden",
-    textAlign: "center",
-    fontSize: 12,
-    minWidth: 80,
-  },
-
   modalMeta: { color: "#475569", fontSize: 14, marginVertical: 2 },
 
   remarkCardHorizontal: {
@@ -505,11 +483,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  complaintMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
   dateText: { fontSize: 12, color: "#64748b" },
 
   statusBadge: {
