@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  ScrollView, // ✅ ADDED THIS
 } from "react-native";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,7 +19,7 @@ export default function Complaints() {
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://172.29.206.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -62,7 +63,7 @@ export default function Complaints() {
     }
   };
 
-  // ✅ Status color helper
+  // Helper for badge colors
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
       case "resolved":
@@ -89,81 +90,84 @@ export default function Complaints() {
     <View style={styles.page}>
       <Text style={styles.title}>📋 Student Complaints</Text>
 
-      {/* ✅ Grid of complaints (unchanged layout) */}
-      <View style={styles.grid}>
-        {complaints.length === 0 ? (
-          <Text style={{ color: "#64748b", marginTop: 20 }}>
-            No complaints available.
-          </Text>
-        ) : (
-          complaints.map((c) => {
-            const style = getStatusStyle(c.status || "pending");
+      {/* ✅ SCROLL FIX — Grid wrapped inside ScrollView */}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {complaints.length === 0 ? (
+            <Text style={{ color: "#64748b", marginTop: 20 }}>
+              No complaints available.
+            </Text>
+          ) : (
+            complaints.map((c) => {
+              const style = getStatusStyle(c.status || "pending");
 
-            // formatted dates
-            const createdOn = c.created_at
-              ? new Date(c.created_at).toLocaleDateString("en-IN", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "—";
+              const createdOn = c.created_at
+                ? new Date(c.created_at).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—";
 
-            const updatedOn = c.updated_at
-              ? new Date(c.updated_at).toLocaleDateString("en-IN", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "—";
+              const updatedOn = c.updated_at
+                ? new Date(c.updated_at).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—";
 
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={styles.card}
-                activeOpacity={0.8}
-                onPress={() => setSelectedComplaint(c)}
-              >
-                <Text style={styles.name}>{c.student_name}</Text>
-                <Text style={styles.studentHostel}>
-                  🏢 Hostel ID: {c.hostel_id || "—"}
-                </Text>
-
-                <Text style={styles.meta}>📧 {c.email}</Text>
-                <Text style={styles.meta}>
-                  🏠 Room: {c.room_no || "N/A"} | {c.dept_branch || "Dept"}
-                </Text>
-                <Text style={styles.meta}>
-                  🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
-                </Text>
-
-                {/* 🕒 Complaint Raised and Last Updated */}
-                <View style={styles.dateRow}>
-                  <Ionicons name="time-outline" size={13} color="#475569" />
-                  <Text style={styles.dateText}>Raised: {createdOn}</Text>
-                </View>
-                <View style={styles.dateRow}>
-                  <Ionicons name="refresh-outline" size={13} color="#475569" />
-                  <Text style={styles.dateText}>Updated: {updatedOn}</Text>
-                </View>
-
-                {/* Status badge */}
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: style.backgroundColor },
-                  ]}
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.card}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedComplaint(c)}
                 >
-                  <Text style={[styles.statusText, { color: style.color }]}>
-                    {c.status?.toUpperCase()}
+                  <Text style={styles.name}>{c.student_name}</Text>
+                  <Text style={styles.studentHostel}>
+                    🏢 Hostel ID: {c.hostel_id || "—"}
                   </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </View>
 
-      {/* ✅ Complaint detail modal (unchanged) */}
+                  <Text style={styles.meta}>📧 {c.email}</Text>
+                  <Text style={styles.meta}>
+                    🏠 Room: {c.room_no || "N/A"} | {c.dept_branch || "Dept"}
+                  </Text>
+                  <Text style={styles.meta}>
+                    🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
+                  </Text>
+
+                  <View style={styles.dateRow}>
+                    <Ionicons name="time-outline" size={13} color="#475569" />
+                    <Text style={styles.dateText}>Raised: {createdOn}</Text>
+                  </View>
+                  <View style={styles.dateRow}>
+                    <Ionicons
+                      name="refresh-outline"
+                      size={13}
+                      color="#475569"
+                    />
+                    <Text style={styles.dateText}>Updated: {updatedOn}</Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: style.backgroundColor },
+                    ]}
+                  >
+                    <Text style={[styles.statusText, { color: style.color }]}>
+                      {c.status?.toUpperCase()}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
+
+      {/* MODAL (unchanged) */}
       {selectedComplaint && (
         <Modal
           visible={true}
@@ -227,17 +231,20 @@ export default function Complaints() {
 
 const styles = StyleSheet.create({
   page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
+
   title: {
     fontSize: 24,
     fontWeight: "700",
     color: "#0b5cff",
     marginBottom: 15,
   },
+
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+
   card: {
     width: "31%",
     backgroundColor: "#fff",
@@ -248,18 +255,22 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     elevation: 3,
   },
+
   name: { fontWeight: "700", fontSize: 16, color: "#0f172a" },
   meta: { fontSize: 13, color: "#475569", marginVertical: 2 },
+
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 3,
   },
+
   dateText: {
     fontSize: 12,
     color: "#475569",
     marginLeft: 5,
   },
+
   statusBadge: {
     alignSelf: "flex-start",
     paddingVertical: 4,
@@ -267,13 +278,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 6,
   },
+
   statusText: { fontWeight: "700", fontSize: 12 },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
+
   modalBox: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -281,12 +295,14 @@ const styles = StyleSheet.create({
     padding: 20,
     elevation: 6,
   },
+
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 8,
   },
+
   modalMeta: { color: "#475569", fontSize: 13, marginVertical: 2 },
   modalDesc: {
     color: "#334155",
@@ -294,14 +310,17 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     lineHeight: 20,
   },
+
   modalStatusRow: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 10,
     justifyContent: "space-between",
   },
+
   modalLabel: { fontWeight: "600", color: "#1e293b", fontSize: 14 },
   picker: { height: 40, width: 160 },
+
   closeBtn: {
     flexDirection: "row",
     backgroundColor: "#0b5cff",
@@ -311,11 +330,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginTop: 15,
   },
+
   closeText: {
     color: "#fff",
     fontWeight: "700",
     marginLeft: 5,
   },
+
   backBtn: {
     backgroundColor: "#0b5cff",
     paddingVertical: 12,
@@ -323,8 +344,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
+
   backBtnText: { color: "#fff", fontWeight: "700" },
+
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
   studentHostel: {
     fontSize: 13,
     color: "#1e3a8a",

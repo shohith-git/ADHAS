@@ -6,30 +6,24 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-// 🟢 Helper to extract domain from email
+// Helper: extract domain
 const extractDomain = (email) => email.split("@")[1];
 
 /* =====================================================
-   👤 REGISTER — Admin/Warden/First-time Admin
-   -----------------------------------------------------
-   Endpoint: POST /api/auth/register
-   Role rules:
-   - No creator → first Admin for domain
-   - Admin → can register Warden
-   - Warden → can register Student
+   👤 REGISTER — Admin / Warden / First Admin
 ===================================================== */
 router.post("/register", async (req, res) => {
   try {
-    const { email, password, role, created_by } = req.body; // created_by = id of who’s creating the user
+    const { name, email, password, role, created_by } = req.body;
 
-    // 🟢 Basic validations
     if (!email || !password)
       return res.status(400).json({ message: "Email and password required" });
 
-    const domain = extractDomain(email);
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (!name && !created_by)
+      return res.status(400).json({ message: "Name is required" });
 
-    // 🟡 Check if user already exists
+    const domain = extractDomain(email);
+
     const existingUser = await pool.query(
       "SELECT * FROM users WHERE email=$1",
       [email]
@@ -37,55 +31,56 @@ router.post("/register", async (req, res) => {
     if (existingUser.rows.length > 0)
       return res.status(400).json({ message: "User already exists" });
 
-    // 🟡 Check if an admin already exists for this domain
     const existingAdmin = await pool.query(
-      "SELECT * FROM users WHERE role=$1 AND college_domain=$2",
-      ["admin", domain]
+      "SELECT * FROM users WHERE role='admin' AND college_domain=$1",
+      [domain]
     );
 
-    let allowedRole = "student"; // default role
+    let assignedRole = "student";
     let collegeDomain = domain;
 
-    // 🟢 CASE 1: No creator (first-time registration → Admin)
+    // CASE 1: First-ever admin
     if (!created_by) {
       if (existingAdmin.rows.length > 0) {
         return res
           .status(403)
           .json({ message: "Admin already exists for this college" });
       }
-      allowedRole = "admin";
+      assignedRole = "admin";
     } else {
-      // 🟢 CASE 2: Someone (creator) is creating a user
+      // CASE 2: Created by warden/admin
       const creator = await pool.query("SELECT * FROM users WHERE id=$1", [
         created_by,
       ]);
+
       if (creator.rows.length === 0)
         return res.status(403).json({ message: "Invalid creator" });
 
       const creatorRole = creator.rows[0].role;
 
-      // 🟢 Role-based permissions
-      if (creatorRole === "admin") allowedRole = "warden";
-      else if (creatorRole === "warden") allowedRole = "student";
+      if (creatorRole === "admin") assignedRole = "warden";
+      else if (creatorRole === "warden") assignedRole = "student";
       else
         return res
           .status(403)
-          .json({ message: "Students cannot register new users" });
+          .json({ message: "Students cannot register users" });
 
-      // 🟢 Verify domain consistency
       collegeDomain = creator.rows[0].college_domain;
+
       if (domain !== collegeDomain)
         return res
           .status(403)
           .json({ message: "Invalid college domain for this role" });
     }
 
-    // 🟢 Insert the new user into DB
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // INSERT user
     const newUser = await pool.query(
-      `INSERT INTO users (email, password, role, college_domain)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, email, role`,
-      [email, hashedPassword, allowedRole, collegeDomain]
+      `INSERT INTO users (name, email, password, role, college_domain)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, email, role, college_domain`,
+      [name, email, hashedPassword, assignedRole, collegeDomain]
     );
 
     res.status(201).json({
@@ -99,49 +94,49 @@ router.post("/register", async (req, res) => {
 });
 
 /* =====================================================
-   🔐 LOGIN — All Roles
-   -----------------------------------------------------
-   Endpoint: POST /api/auth/login
-   Role: Admin, Warden, Student
+   🔐 LOGIN — Admin, Warden, Student
 ===================================================== */
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password)
       return res.status(400).json({ message: "Email and password required" });
 
-    // 🟢 Check if user exists
-    const user = await pool.query("SELECT * FROM users WHERE email=$1", [
+    const result = await pool.query("SELECT * FROM users WHERE email=$1", [
       email,
     ]);
-    if (user.rows.length === 0)
+
+    if (result.rows.length === 0)
       return res.status(400).json({ message: "User not found" });
 
-    // 🟢 Verify password
-    const validPassword = await bcrypt.compare(password, user.rows[0].password);
+    const user = result.rows[0];
+
+    const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // 🟢 Generate JWT (with correct secret from .env)
+    // Include name in JWT
     const token = jwt.sign(
       {
-        id: user.rows[0].id,
-        role: user.rows[0].role,
-        college: user.rows[0].college_domain,
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        college: user.college_domain,
       },
-      process.env.JWT_SECRET, // ✅ using .env variable (not hardcoded)
+      process.env.JWT_SECRET,
       { expiresIn: "6h" }
     );
 
-    // 🟢 Return token + user details
     res.json({
       message: "Login successful ✅",
       token,
       user: {
-        id: user.rows[0].id,
-        email: user.rows[0].email,
-        role: user.rows[0].role,
-        college: user.rows[0].college_domain,
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        college: user.college_domain,
       },
     });
   } catch (err) {

@@ -297,81 +297,98 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
 
 /* =====================================================
    ❌ Delete student (Move to past_students first)
-   NOTE: removed sp.warden_remarks usage here as well
 ===================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
 
-    if (!id || id === "null" || isNaN(Number(id))) {
+    if (!id || isNaN(Number(id))) {
       return res.status(400).json({ message: "Invalid student ID" });
     }
 
     await client.query("BEGIN");
 
-    const result = await client.query(
-      `SELECT 
-         u.id AS user_id, u.name, u.email, u.role, u.college_domain,
-         sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
-         sp.phone_number, sp.gender, sp.dob, sp.address, sp.father_name, sp.father_number,
-         sp.mother_name, sp.mother_number, sp.profile_photo, sp.batch
-       FROM users u
-       LEFT JOIN student_profiles sp ON sp.user_id = u.id
-       WHERE u.id=$1 AND u.role='student'`,
+    // 0️⃣ Verify student exists before deletion
+    const check = await client.query(
+      `SELECT u.id 
+       FROM users u 
+       WHERE u.id = $1 AND u.role = 'student'`,
       [id]
     );
 
-    if (result.rows.length === 0) {
+    if (check.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Student not found" });
     }
 
+    // 1️⃣ Move to past_students
     await client.query(
       `INSERT INTO past_students (
-        user_id, name, email, usn, dept_branch, year, room_no, hostel_id,
-        phone_number, gender, dob, address, father_name, father_number, mother_name,
-        mother_number, profile_photo, batch,
-        role, college_domain, created_at, left_at
-      )
-      SELECT 
-        u.id, u.name, u.email, sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
-        sp.phone_number, sp.gender, sp.dob, sp.address,
-        sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
-        sp.profile_photo, sp.batch,
-        u.role, u.college_domain, u.created_at, NOW()
-      FROM users u
-      LEFT JOIN student_profiles sp ON sp.user_id = u.id
-      WHERE u.id = $1 AND u.role = 'student'
-      ON CONFLICT (email)
-      DO UPDATE SET
-        hostel_id=EXCLUDED.hostel_id,
-        name=EXCLUDED.name,
-        dept_branch=EXCLUDED.dept_branch,
-        year=EXCLUDED.year,
-        room_no=EXCLUDED.room_no,
-        phone_number=EXCLUDED.phone_number,
-        gender=EXCLUDED.gender,
-        dob=EXCLUDED.dob,
-        address=EXCLUDED.address,
-        father_name=EXCLUDED.father_name,
-        father_number=EXCLUDED.father_number,
-        mother_name=EXCLUDED.mother_name,
-        mother_number=EXCLUDED.mother_number,
-        profile_photo=EXCLUDED.profile_photo,
-        batch=EXCLUDED.batch,
-        role=EXCLUDED.role,
-        college_domain=EXCLUDED.college_domain,
-        created_at=EXCLUDED.created_at,
-        left_at=EXCLUDED.left_at`,
+         user_id, name, email, usn, dept_branch, year, room_no, hostel_id,
+         phone_number, gender, dob, address, father_name, father_number,
+         mother_name, mother_number, profile_photo, batch,
+         role, college_domain, created_at, left_at
+       )
+       SELECT 
+         u.id, u.name, u.email, sp.usn, sp.dept_branch, sp.year, sp.room_no, sp.hostel_id,
+         sp.phone_number, sp.gender, sp.dob, sp.address,
+         sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
+         sp.profile_photo, sp.batch,
+         u.role, u.college_domain, u.created_at, NOW()
+       FROM users u
+       LEFT JOIN student_profiles sp ON sp.user_id = u.id
+       WHERE u.id = $1 AND u.role = 'student'
+       ON CONFLICT (email)
+       DO UPDATE SET
+         hostel_id=EXCLUDED.hostel_id,
+         name=EXCLUDED.name,
+         dept_branch=EXCLUDED.dept_branch,
+         year=EXCLUDED.year,
+         room_no=EXCLUDED.room_no,
+         phone_number=EXCLUDED.phone_number,
+         gender=EXCLUDED.gender,
+         dob=EXCLUDED.dob,
+         address=EXCLUDED.address,
+         father_name=EXCLUDED.father_name,
+         father_number=EXCLUDED.father_number,
+         mother_name=EXCLUDED.mother_name,
+         mother_number=EXCLUDED.mother_number,
+         profile_photo=EXCLUDED.profile_photo,
+         batch=EXCLUDED.batch,
+         role=EXCLUDED.role,
+         college_domain=EXCLUDED.college_domain,
+         created_at=EXCLUDED.created_at,
+         left_at=EXCLUDED.left_at`,
       [id]
     );
 
-    await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
-    await client.query("DELETE FROM users WHERE id=$1", [id]);
+    // 2️⃣ Delete all complaints for active + old schema
+    await client.query(
+      `DELETE FROM complaints 
+       WHERE user_id = $1 OR student_id = $1`,
+      [id]
+    );
+
+    // 3️⃣ Delete remarks
+    await client.query(`DELETE FROM student_remarks WHERE student_id = $1`, [
+      id,
+    ]);
+
+    // 4️⃣ Delete attendance
+    await client.query(`DELETE FROM attendance WHERE student_id = $1`, [id]);
+
+    // 5️⃣ Delete student profile
+    await client.query("DELETE FROM student_profiles WHERE user_id = $1", [id]);
+
+    // 6️⃣ Delete user
+    await client.query("DELETE FROM users WHERE id = $1", [id]);
 
     await client.query("COMMIT");
-    res.json({ message: "Student moved to past_students ✅" });
+
+    res.json({
+      message: "Student moved to past_students and deleted successfully ✅",
+    });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("❌ Error deleting student:", err);

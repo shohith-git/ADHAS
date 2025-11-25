@@ -6,7 +6,6 @@ const { authMiddleware, isWarden } = require("../middleware/authMiddleware");
 
 /* ==========================================================
    🏗️ AUTO-GENERATE ROOMS
-   POST /api/rooms/auto-generate
 ========================================================== */
 router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -37,7 +36,6 @@ router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
       values.push([`W${i}`, parseInt(floor), "West", parseInt(westSharing), 0]);
     }
 
-    // ✅ allow same room_number across different floors/sides
     for (const v of values) {
       await pool.query(
         `INSERT INTO rooms (room_number, floor, side, sharing, occupied)
@@ -61,7 +59,6 @@ router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
 
 /* ==========================================================
    🏠 ADD MANUAL ROOM
-   POST /api/rooms
 ========================================================== */
 router.post("/", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -108,7 +105,6 @@ router.post("/", authMiddleware, isWarden, async (req, res) => {
 
 /* ==========================================================
    📋 FETCH ALL ROOMS
-   GET /api/rooms
 ========================================================== */
 router.get("/", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -128,7 +124,6 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
 
 /* ==========================================================
    ✏️ EDIT ROOM
-   PUT /api/rooms/:id
 ========================================================== */
 router.put("/:id", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -172,45 +167,41 @@ router.put("/:id", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* ==========================================================
-   ❌ DELETE SINGLE ROOM (Deep Debug Version)
-   DELETE /api/rooms/:id
+   ❌ DELETE SINGLE ROOM (NOW SAFE)
 ========================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   console.log("🔍 DELETE /api/rooms/:id HIT");
   console.log("➡ Params:", req.params);
-  console.log("➡ Headers:", req.headers);
 
   try {
     const { id } = req.params;
 
-    // Extra safety logs
-    console.log("🧪 Checking room existence...");
+    // Check room exists
     const exists = await pool.query("SELECT * FROM rooms WHERE id=$1", [id]);
-    console.log("↪ Found rows:", exists.rows.length);
 
     if (exists.rows.length === 0) {
-      console.log("🚫 Room not found");
       return res.status(404).json({ message: "Room not found" });
     }
 
-    console.log("🗑️ Deleting room now...");
+    const room = exists.rows[0];
+
+    // 🔥 Important Fix:
+    // Clear this room assignment from student_profiles before deleting
+    await pool.query(
+      `UPDATE student_profiles SET room_no = NULL WHERE room_no = $1`,
+      [room.room_number]
+    );
+
+    // Delete room
     const result = await pool.query(
       "DELETE FROM rooms WHERE id=$1 RETURNING *",
       [id]
     );
 
-    console.log("✅ Deleted:", result.rows[0]);
-
     res.json({
       message: `Room ${result.rows[0].room_number} deleted successfully`,
     });
   } catch (error) {
-    console.log("❌ DELETE ERROR DETAILS:", {
-      message: error.message,
-      code: error.code,
-      stack: error.stack,
-    });
-
     res.status(500).json({
       message: "Server error while deleting room",
       error: error.message,

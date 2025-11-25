@@ -27,7 +27,7 @@ export default function AttendancePanel() {
   const toastAnim = React.useRef(new Animated.Value(0)).current;
 
   // Backend
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://172.29.206.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
