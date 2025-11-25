@@ -22,7 +22,7 @@ export default function WardenStudentManagement() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://172.29.206.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -101,16 +101,24 @@ export default function WardenStudentManagement() {
       confirmButtonText: "Yes, remove",
       cancelButtonText: "Cancel",
     });
+
     if (!confirmation.isConfirmed) return;
 
     try {
+      console.log("Deleting student with token:", token); // Debug
+
       const res = await axios.delete(`${BACKEND}/api/students/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
+
       Swal.fire("✅ Removed", res.data.message, "success");
+
       setStudents((prev) => prev.filter((s) => s.id !== id));
     } catch (err) {
-      console.error("Delete error:", err);
+      console.error("Delete error:", err.response?.data || err);
       Swal.fire(
         "❌ Error",
         err.response?.data?.message || "Failed to delete student",
@@ -229,7 +237,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  /* 🌟 Card Containers */
   cardContainer: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -246,7 +253,6 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
 
-  /* 🧾 Sections */
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -283,7 +289,6 @@ const styles = StyleSheet.create({
   },
   eyeButton: { paddingHorizontal: 8 },
 
-  /* 💙 Buttons */
   buttonGradient: {
     backgroundColor: "#2563eb",
     paddingVertical: 12,
@@ -303,7 +308,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* 🧍 Student Cards */
+  /* Grid */
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -321,6 +326,7 @@ const styles = StyleSheet.create({
   studentName: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
   studentEmail: { color: "#64748b", marginVertical: 2 },
   roleTag: { fontSize: 13, color: "#2563eb" },
+
   deleteBtn: {
     backgroundColor: "#ef4444",
     padding: 8,
@@ -328,7 +334,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-  /* 🔗 Other Buttons */
   secondaryBtn: {
     marginTop: 20,
     paddingVertical: 12,
@@ -336,6 +341,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   secondaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
   backBtn: {
     marginTop: 25,
     backgroundColor: "#0b5cff",
@@ -344,5 +350,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
   noData: { color: "#64748b", textAlign: "center", marginVertical: 10 },
 });

@@ -22,7 +22,7 @@ export default function WardenStudentDetails({ mode = "add" }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://172.29.206.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 

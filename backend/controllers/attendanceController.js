@@ -1,10 +1,18 @@
+// backend/controllers/attendanceController.js
 const pool = require("../db");
 
 /* ---------------------------------------------------------
-   MARK ATTENDANCE (Final Version)
+   MARK ATTENDANCE (Final & Safe Version)
 ---------------------------------------------------------- */
 exports.markAttendance = async (req, res) => {
   try {
+    // Protect – Only warden can mark attendance
+    if (req.user.role !== "warden") {
+      return res
+        .status(403)
+        .json({ message: "Only wardens can mark attendance" });
+    }
+
     const student_id = req.body.student_id ?? req.body.studentId;
     const method = (req.body.method || "").trim();
 
@@ -14,7 +22,7 @@ exports.markAttendance = async (req, res) => {
 
     // Check student exists
     const student = await pool.query(
-      `SELECT u.id, sp.hostel_id
+      `SELECT u.id, u.name, sp.hostel_id
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'student'`,
@@ -25,7 +33,7 @@ exports.markAttendance = async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    // Insert attendance with UNIQUE constraint
+    // Insert attendance with UNIQUE(student_id, date)
     const query = `
       INSERT INTO attendance (student_id, date, time, method)
       VALUES ($1, CURRENT_DATE, CURRENT_TIME, $2)
@@ -45,7 +53,11 @@ exports.markAttendance = async (req, res) => {
 
     return res.status(201).json({
       message: "Attendance marked successfully",
-      data: result.rows[0],
+      data: {
+        ...result.rows[0],
+        student_name: student.rows[0].name,
+        hostel_id: student.rows[0].hostel_id,
+      },
     });
   } catch (err) {
     console.error("❌ markAttendance error:", err);
@@ -54,7 +66,7 @@ exports.markAttendance = async (req, res) => {
 };
 
 /* ---------------------------------------------------------
-   GET ALL ATTENDANCE (For table)
+   GET ALL ATTENDANCE
 ---------------------------------------------------------- */
 exports.getAllAttendance = async (req, res) => {
   try {
@@ -76,7 +88,6 @@ exports.getAllAttendance = async (req, res) => {
       LEFT JOIN student_profiles sp ON sp.user_id = u.id
       ORDER BY a.date DESC, a.time DESC;
     `;
-
     const result = await pool.query(query);
     res.status(200).json(result.rows);
   } catch (err) {
@@ -124,7 +135,6 @@ exports.getAttendanceSummary = async (req, res) => {
       GROUP BY date
       ORDER BY date DESC;
     `;
-
     const result = await pool.query(query);
     res.status(200).json(result.rows);
   } catch (err) {
@@ -167,7 +177,7 @@ exports.getAttendanceByDate = async (req, res) => {
 };
 
 /* ---------------------------------------------------------
-   UNDO TODAY'S ATTENDANCE (Final Version)
+   UNDO TODAY'S ATTENDANCE
 ---------------------------------------------------------- */
 exports.undoAttendance = async (req, res) => {
   try {
@@ -185,47 +195,37 @@ exports.undoAttendance = async (req, res) => {
 
     const result = await pool.query(deleteQuery, [studentId]);
 
-    // If no record found for today
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        message: "No attendance found to undo for today",
-      });
+      return res
+        .status(404)
+        .json({ message: "No attendance found to undo for today" });
     }
 
-    return res.status(200).json({
-      message: "Undo successful",
-    });
+    return res.status(200).json({ message: "Undo successful" });
   } catch (err) {
     console.error("❌ Undo attendance error:", err);
-    return res.status(500).json({
-      message: "Error undoing attendance",
-    });
+    return res.status(500).json({ message: "Error undoing attendance" });
   }
 };
 
 /* ---------------------------------------------------------
-   AUTO MARK ABSENT FOR STUDENTS WHO DID NOT MARK TODAY
+   AUTO MARK ABSENT (DAILY JOB)
 ---------------------------------------------------------- */
 exports.autoMarkAbsent = async () => {
   try {
-    // 1. Get all students
     const allStudents = await pool.query(
       "SELECT id FROM users WHERE role = 'student'"
     );
 
-    const studentIds = allStudents.rows.map((s) => s.id);
-
-    // 2. Get today's attendance list
     const presentToday = await pool.query(
       "SELECT DISTINCT student_id FROM attendance WHERE date = CURRENT_DATE"
     );
 
-    const presentIds = presentToday.rows.map((p) => p.student_id);
+    const studentIds = allStudents.rows.map((s) => s.id);
+    const presentIds = presentToday.rows.map((s) => s.student_id);
 
-    // 3. Students who did NOT mark attendance today
     const absentees = studentIds.filter((id) => !presentIds.includes(id));
 
-    // 4. Insert absentees
     for (const studentId of absentees) {
       await pool.query(
         `INSERT INTO attendance (student_id, date, time, method)

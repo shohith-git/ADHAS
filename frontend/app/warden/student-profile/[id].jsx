@@ -25,7 +25,7 @@ export default function StudentDetails() {
   const [newRemark, setNewRemark] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://172.29.206.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -268,7 +268,7 @@ export default function StudentDetails() {
             <Text style={styles.value}>{student.address || "N/A"}</Text>
           </View>
 
-          {/* PARENTS */}
+          {/* Parents */}
           <View style={styles.parentContainer}>
             <Text style={styles.parentTitle}>👨 Father's Details</Text>
             <Text style={styles.parentInfo}>
@@ -494,11 +494,24 @@ const styles = StyleSheet.create({
 
   detailRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 20, // keeps spacing consistent
   },
-  label: { color: "#475569", fontWeight: "600" },
-  value: { color: "#0f172a", fontWeight: "500" },
+
+  label: {
+    width: 120, // fixed width for labels (aligned left)
+    color: "#475569",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+
+  value: {
+    flexShrink: 1,
+    color: "#0f172a",
+    fontWeight: "500",
+    fontSize: 14,
+  },
 
   roomBadge: {
     color: "#fff",

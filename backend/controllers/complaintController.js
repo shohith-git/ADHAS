@@ -6,8 +6,15 @@ const pool = require("../db");
 // -----------------------------------------------------------------------------
 exports.addComplaint = async (req, res) => {
   try {
-    const user = req.user; // comes from authMiddleware
+    const user = req.user; // from authMiddleware
     const { title, description } = req.body;
+
+    // Only students can submit complaints
+    if (user.role !== "student") {
+      return res
+        .status(403)
+        .json({ message: "Only students can file complaints" });
+    }
 
     if (!title || !description) {
       return res.status(400).json({
@@ -15,11 +22,9 @@ exports.addComplaint = async (req, res) => {
       });
     }
 
-    // Get student room number
+    // Fetch student room_no
     const prof = await pool.query(
-      `SELECT room_no
-       FROM student_profiles
-       WHERE user_id = $1`,
+      `SELECT room_no FROM student_profiles WHERE user_id = $1`,
       [user.id]
     );
 
@@ -28,9 +33,8 @@ exports.addComplaint = async (req, res) => {
     // Insert complaint
     const result = await pool.query(
       `INSERT INTO complaints 
-        (user_id, student_id, room_no, title, description, status, created_at, updated_at)
-       VALUES 
-        ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
+         (user_id, student_id, room_no, title, description, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
        RETURNING *`,
       [user.id, user.id, room_no, title, description]
     );
@@ -82,7 +86,7 @@ exports.getAllComplaints = async (req, res) => {
 };
 
 // -----------------------------------------------------------------------------
-// 🔵 STUDENT — VIEW THEIR OWN COMPLAINTS
+// 🔵 STUDENT — VIEW THEIR OWN COMPLAINTS + Warden can view any student complaints
 // -----------------------------------------------------------------------------
 exports.getComplaintsByStudent = async (req, res) => {
   try {
@@ -102,7 +106,7 @@ exports.getComplaintsByStudent = async (req, res) => {
           created_at,
           updated_at
        FROM complaints
-       WHERE student_id = $1
+       WHERE student_id = $1 OR user_id = $1
        ORDER BY created_at DESC`,
       [studentId]
     );
@@ -122,8 +126,11 @@ exports.updateComplaintStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowed = ["pending", "in-progress", "resolved", "denied"];
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({ message: "Invalid complaint ID" });
+    }
 
+    const allowed = ["pending", "in-progress", "resolved", "denied"];
     if (!allowed.includes(status.toLowerCase())) {
       return res.status(400).json({
         message: `Invalid status. Allowed: ${allowed.join(", ")}`,

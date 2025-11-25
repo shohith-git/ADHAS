@@ -18,7 +18,7 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://172.29.206.21:5000";
 
   // Fetch active users
   const fetchActiveUsers = async () => {
