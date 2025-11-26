@@ -214,7 +214,7 @@ export default function WardenStudentManagement() {
       {/* 🔗 View History */}
       <TouchableOpacity
         style={[styles.secondaryBtn, { backgroundColor: "#1e40af" }]}
-        onPress={() => router.push("/warden/past-students")}
+        onPress={() => router.push("/warden/students-history")}
       >
         <Text style={styles.secondaryBtnText}>📜 View Student History</Text>
       </TouchableOpacity>
