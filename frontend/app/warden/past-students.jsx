@@ -13,8 +13,8 @@ import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-export default function PastStudents() {
-  const [pastStudents, setPastStudents] = useState([]);
+export default function StudentsHistory() {
+  const [pastStudents, setStudentsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -22,29 +22,29 @@ export default function PastStudents() {
   const [complaints, setComplaints] = useState([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  const BACKEND = "http://172.29.206.21:5000";
+  const BACKEND = "http://10.49.102.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   /* ================================================
-     FETCH ALL PAST STUDENTS
+     FETCH ALL STUDENTS HISTORY
   ================================================= */
-  const fetchPastStudents = async () => {
+  const fetchStudentsHistory = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/students/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setPastStudents(res.data || []);
+      setStudentsHistory(res.data || []);
     } catch (err) {
-      console.error("❌ Error fetching past students:", err);
-      alert("Failed to fetch past students");
+      console.error("❌ Error fetching students history:", err);
+      alert("Failed to fetch students history");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPastStudents();
+    fetchStudentsHistory();
   }, []);
 
   /* ================================================
@@ -103,18 +103,18 @@ export default function PastStudents() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#0b5cff" />
-        <Text style={{ marginTop: 10 }}>Loading past students...</Text>
+        <Text style={{ marginTop: 10 }}>Loading Students History...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.page}>
-      <Text style={styles.title}>🎓 Past Students</Text>
+      <Text style={styles.title}>🎓 Students History</Text>
 
       <ScrollView contentContainerStyle={styles.grid}>
         {pastStudents.length === 0 ? (
-          <Text style={styles.emptyText}>No past students found.</Text>
+          <Text style={styles.emptyText}>No Students History found.</Text>
         ) : (
           pastStudents.map((s) => (
             <TouchableOpacity

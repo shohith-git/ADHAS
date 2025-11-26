@@ -6,6 +6,7 @@ const { authMiddleware, isWarden } = require("../middleware/authMiddleware");
 
 /* ==========================================================
    🏗️ AUTO-GENERATE ROOMS
+   POST /api/rooms/auto-generate
 ========================================================== */
 router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -36,6 +37,7 @@ router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
       values.push([`W${i}`, parseInt(floor), "West", parseInt(westSharing), 0]);
     }
 
+    // ✅ allow same room_number across different floors/sides
     for (const v of values) {
       await pool.query(
         `INSERT INTO rooms (room_number, floor, side, sharing, occupied)
@@ -59,6 +61,7 @@ router.post("/auto-generate", authMiddleware, isWarden, async (req, res) => {
 
 /* ==========================================================
    🏠 ADD MANUAL ROOM
+   POST /api/rooms
 ========================================================== */
 router.post("/", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -105,6 +108,7 @@ router.post("/", authMiddleware, isWarden, async (req, res) => {
 
 /* ==========================================================
    📋 FETCH ALL ROOMS
+   GET /api/rooms
 ========================================================== */
 router.get("/", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -124,6 +128,7 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
 
 /* ==========================================================
    ✏️ EDIT ROOM
+   PUT /api/rooms/:id
 ========================================================== */
 router.put("/:id", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -167,44 +172,73 @@ router.put("/:id", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* ==========================================================
-   ❌ DELETE SINGLE ROOM (NOW SAFE)
+   ❌ DELETE SINGLE ROOM (Deep Debug Version)
+   DELETE /api/rooms/:id
 ========================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   console.log("🔍 DELETE /api/rooms/:id HIT");
   console.log("➡ Params:", req.params);
+  console.log("➡ Headers:", req.headers);
 
   try {
     const { id } = req.params;
 
-    // Check room exists
+    // Extra safety logs
+    console.log("🧪 Checking room existence...");
     const exists = await pool.query("SELECT * FROM rooms WHERE id=$1", [id]);
+    console.log("↪ Found rows:", exists.rows.length);
 
     if (exists.rows.length === 0) {
+      console.log("🚫 Room not found");
       return res.status(404).json({ message: "Room not found" });
     }
 
-    const room = exists.rows[0];
-
-    // 🔥 Important Fix:
-    // Clear this room assignment from student_profiles before deleting
-    await pool.query(
-      `UPDATE student_profiles SET room_no = NULL WHERE room_no = $1`,
-      [room.room_number]
-    );
-
-    // Delete room
+    console.log("🗑️ Deleting room now...");
     const result = await pool.query(
       "DELETE FROM rooms WHERE id=$1 RETURNING *",
       [id]
     );
 
+    console.log("✅ Deleted:", result.rows[0]);
+
     res.json({
       message: `Room ${result.rows[0].room_number} deleted successfully`,
     });
   } catch (error) {
+    console.log("❌ DELETE ERROR DETAILS:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+
     res.status(500).json({
       message: "Server error while deleting room",
       error: error.message,
+    });
+  }
+});
+
+/* ==========================================================
+   ❌ DELETE ALL ROOMS
+   DELETE /api/rooms
+========================================================== */
+router.delete("/", authMiddleware, isWarden, async (req, res) => {
+  try {
+    console.log("🗑️ DELETE ALL ROOMS called");
+
+    // Delete all rooms table entries
+    const result = await pool.query("DELETE FROM rooms RETURNING *");
+
+    console.log(`✅ Deleted ${result.rows.length} rooms`);
+
+    res.json({
+      message: "All rooms deleted successfully",
+      deletedCount: result.rows.length,
+    });
+  } catch (error) {
+    console.error("❌ Error deleting all rooms:", error);
+    res.status(500).json({
+      message: "Server error while deleting all rooms",
     });
   }
 });
