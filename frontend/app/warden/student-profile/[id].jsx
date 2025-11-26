@@ -1,4 +1,3 @@
-// frontend/app/warden/student-profiles/[id].jsx  (StudentDetails.jsx)
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -13,9 +12,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function StudentDetails() {
-  const params = useLocalSearchParams(); // 👈 NEW (detects update flag)
+  const params = useLocalSearchParams();
   const { id } = params;
   const router = useRouter();
 
@@ -25,9 +25,7 @@ export default function StudentDetails() {
   const [newRemark, setNewRemark] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const BACKEND = "http://10.69.232.21:5000";
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const BACKEND = "http://10.49.102.21:5000";
 
   /* ------------------ TOAST SYSTEM ------------------ */
   const [toastMessage, setToastMessage] = useState("");
@@ -70,15 +68,18 @@ export default function StudentDetails() {
     if (params.updated === "1") {
       setTimeout(() => {
         showToast("Student details updated successfully!", "success");
-      }, 250); // delay ensures it appears visibly
+      }, 200);
 
-      router.setParams({ updated: undefined }); // clear message
+      router.setParams({ updated: undefined });
     }
   }, [params.updated]);
 
-  // Fetch all sections
+  /* ------------------ FETCH ALL DATA ------------------ */
   const fetchAllData = async () => {
+    setLoading(true);
     try {
+      const token = await AsyncStorage.getItem("token");
+
       const stuRes = await axios.get(`${BACKEND}/api/students/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -102,8 +103,9 @@ export default function StudentDetails() {
       } catch {
         setRemarks([]);
       }
-    } catch {
-      console.log("❌ Failed loading student data");
+    } catch (err) {
+      console.log("❌ Failed loading student data:", err);
+      showToast("Unable to load student details.", "error");
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,9 @@ export default function StudentDetails() {
       showToast("Enter a remark first.", "warning");
       return;
     }
+
     try {
+      const token = await AsyncStorage.getItem("token");
       const res = await axios.post(
         `${BACKEND}/api/remarks/${id}`,
         { remark: newRemark },
@@ -125,7 +129,8 @@ export default function StudentDetails() {
       setNewRemark("");
 
       showToast("Remark added.", "success");
-    } catch {
+    } catch (err) {
+      console.log("❌ addRemark error:", err);
       showToast("Could not save remark.", "error");
     }
   };
@@ -159,7 +164,7 @@ export default function StudentDetails() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* FLOATING TOAST (always visible even on scroll) */}
+      {/* FLOATING TOAST */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -187,7 +192,7 @@ export default function StudentDetails() {
         <Text style={styles.toastText}>{toastMessage}</Text>
       </Animated.View>
 
-      {/* MAIN PAGE SCROLL */}
+      {/* MAIN PAGE */}
       <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
         {/* Header */}
         <View style={styles.headerRow}>
@@ -195,6 +200,7 @@ export default function StudentDetails() {
             <Text style={styles.pageTitle}>{student.name}</Text>
             <Text style={styles.subTitle}>{student.email}</Text>
           </View>
+
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() =>
@@ -268,7 +274,7 @@ export default function StudentDetails() {
             <Text style={styles.value}>{student.address || "N/A"}</Text>
           </View>
 
-          {/* PARENTS */}
+          {/* Parents Section */}
           <View style={styles.parentContainer}>
             <Text style={styles.parentTitle}>👨 Father's Details</Text>
             <Text style={styles.parentInfo}>
@@ -441,6 +447,7 @@ const styles = StyleSheet.create({
     elevation: 7,
     zIndex: 9999,
   },
+
   toastIcon: { fontSize: 18, marginRight: 8 },
   toastText: { fontWeight: "700", fontSize: 14, color: "#0f172a" },
 
@@ -452,11 +459,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 20,
   },
+
   pageTitle: {
     fontSize: 22,
     fontWeight: "700",
     color: "#0b5cff",
   },
+
   subTitle: { fontSize: 13, color: "#475569" },
 
   editBtn: {
@@ -467,6 +476,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
   },
+
   editBtnText: {
     color: "#fff",
     fontWeight: "600",
@@ -480,11 +490,13 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
   },
+
   shadowCard: {
     borderWidth: 1,
     borderColor: "#e2e8f0",
     elevation: 3,
   },
+
   sectionHeader: {
     fontSize: 17,
     fontWeight: "700",
@@ -494,11 +506,24 @@ const styles = StyleSheet.create({
 
   detailRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 20,
   },
-  label: { color: "#475569", fontWeight: "600" },
-  value: { color: "#0f172a", fontWeight: "500" },
+
+  label: {
+    width: 120,
+    color: "#475569",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+
+  value: {
+    flexShrink: 1,
+    color: "#0f172a",
+    fontWeight: "500",
+    fontSize: 14,
+  },
 
   roomBadge: {
     color: "#fff",
@@ -520,6 +545,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
+
   parentTitle: { fontSize: 15, fontWeight: "700", color: "#0b5cff" },
   parentInfo: { fontSize: 13, color: "#334155" },
 
@@ -539,23 +565,27 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     justifyContent: "space-between",
   },
+
   complaintTitle: {
     fontSize: 15.5,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 6,
   },
+
   complaintDesc: {
     fontSize: 13.5,
     color: "#475569",
     marginBottom: 8,
     lineHeight: 18,
   },
+
   dateRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 6,
   },
+
   dateText: { fontSize: 12, color: "#64748b" },
 
   statusBadge: {
@@ -563,6 +593,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 8,
   },
+
   statusText: { fontWeight: "700", fontSize: 12.5 },
 
   remarkInputRow: {
@@ -570,6 +601,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
+
   remarkInput: {
     flex: 1,
     backgroundColor: "#f1f5f9",
@@ -581,12 +613,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
+
   addBtn: {
     backgroundColor: "#2563eb",
     borderRadius: 8,
     padding: 10,
     marginLeft: 8,
   },
+
   remarkCard: {
     backgroundColor: "#fff",
     borderRadius: 14,
@@ -598,7 +632,9 @@ const styles = StyleSheet.create({
     height: 130,
     elevation: 3,
   },
+
   remarkText: { fontSize: 13.5, color: "#0f172a", lineHeight: 18 },
+
   remarkDate: { fontSize: 12, color: "#64748b", marginTop: 6 },
 
   emptyText: {
@@ -607,6 +643,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
+
   backBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -617,6 +654,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
+
   backText: {
     color: "#fff",
     fontWeight: "700",

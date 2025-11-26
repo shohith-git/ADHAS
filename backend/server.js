@@ -24,7 +24,8 @@ const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const remarkRoutes = require("./routes/remarkRoutes");
-const aiRoutes = require("./routes/aiRoutes");
+const aiRoutes = require("./routes/aiRoutes"); // ← KEEP from HEAD
+const recalcAllRooms = require("./utils/recalculateOccupancy"); // ← KEEP from students-features
 
 // 🛠️ Route mapping
 app.use("/api/users", userRoutes);
@@ -38,6 +39,9 @@ app.use("/api/remarks", remarkRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/ai", aiRoutes);
 
+// 🔄 Auto fix room occupancy on every server start
+recalcAllRooms();
+
 // 🧪 Health Check
 app.get("/", (req, res) => {
   res.send("ADHAS Backend Running ✅");
@@ -45,5 +49,5 @@ app.get("/", (req, res) => {
 
 // 🚀 Start Server
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://10.69.232.21:${PORT}`);
+  console.log(`Server running on http://10.49.102.21:${PORT}`);
 });

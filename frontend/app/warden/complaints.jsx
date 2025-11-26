@@ -7,7 +7,11 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+<<<<<<< HEAD
   ScrollView,
+=======
+  ScrollView, // ✅ ADDED THIS
+>>>>>>> students-features
 } from "react-native";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +23,7 @@ export default function Complaints() {
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://10.49.102.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -63,7 +67,11 @@ export default function Complaints() {
     }
   };
 
+<<<<<<< HEAD
   // Status color helper
+=======
+  // Helper for badge colors
+>>>>>>> students-features
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
       case "resolved":
@@ -90,6 +98,7 @@ export default function Complaints() {
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.title}>📋 Student Complaints</Text>
 
+<<<<<<< HEAD
       <View style={styles.grid}>
         {complaints.length === 0 ? (
           <Text style={{ color: "#64748b", marginTop: 20 }}>
@@ -106,15 +115,36 @@ export default function Complaints() {
                   year: "numeric",
                 })
               : "—";
+=======
+      {/* ✅ SCROLL FIX — Grid wrapped inside ScrollView */}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.grid}>
+          {complaints.length === 0 ? (
+            <Text style={{ color: "#64748b", marginTop: 20 }}>
+              No complaints available.
+            </Text>
+          ) : (
+            complaints.map((c) => {
+              const style = getStatusStyle(c.status || "pending");
 
-            const updatedOn = c.updated_at
-              ? new Date(c.updated_at).toLocaleDateString("en-IN", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "—";
+              const createdOn = c.created_at
+                ? new Date(c.created_at).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—";
+>>>>>>> students-features
 
+              const updatedOn = c.updated_at
+                ? new Date(c.updated_at).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—";
+
+<<<<<<< HEAD
             return (
               <TouchableOpacity
                 key={c.id}
@@ -150,18 +180,63 @@ export default function Complaints() {
                     styles.statusBadge,
                     { backgroundColor: style.backgroundColor },
                   ]}
+=======
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.card}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedComplaint(c)}
+>>>>>>> students-features
                 >
-                  <Text style={[styles.statusText, { color: style.color }]}>
-                    {c.status?.toUpperCase()}
+                  <Text style={styles.name}>{c.student_name}</Text>
+                  <Text style={styles.studentHostel}>
+                    🏢 Hostel ID: {c.hostel_id || "—"}
                   </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </View>
 
+<<<<<<< HEAD
       {/* Complaint Modal */}
+=======
+                  <Text style={styles.meta}>📧 {c.email}</Text>
+                  <Text style={styles.meta}>
+                    🏠 Room: {c.room_no || "N/A"} | {c.dept_branch || "Dept"}
+                  </Text>
+                  <Text style={styles.meta}>
+                    🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
+                  </Text>
+
+                  <View style={styles.dateRow}>
+                    <Ionicons name="time-outline" size={13} color="#475569" />
+                    <Text style={styles.dateText}>Raised: {createdOn}</Text>
+                  </View>
+                  <View style={styles.dateRow}>
+                    <Ionicons
+                      name="refresh-outline"
+                      size={13}
+                      color="#475569"
+                    />
+                    <Text style={styles.dateText}>Updated: {updatedOn}</Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: style.backgroundColor },
+                    ]}
+                  >
+                    <Text style={[styles.statusText, { color: style.color }]}>
+                      {c.status?.toUpperCase()}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
+
+      {/* MODAL (unchanged) */}
+>>>>>>> students-features
       {selectedComplaint && (
         <Modal
           visible={true}
@@ -226,11 +301,15 @@ export default function Complaints() {
 }
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
   page: {
     backgroundColor: "#f9fafb",
     padding: 20,
     paddingBottom: 40,
   },
+=======
+  page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
+>>>>>>> students-features
 
   title: {
     fontSize: 24,

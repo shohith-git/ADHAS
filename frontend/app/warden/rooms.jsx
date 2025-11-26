@@ -1,4 +1,3 @@
-// frontend/app/warden/rooms.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -72,7 +71,7 @@ export default function Rooms() {
   };
   // ------------------------------------------------------
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://10.49.102.21:5000";
 
   const fetchRooms = async () => {
     try {
@@ -138,11 +137,30 @@ export default function Rooms() {
 
     try {
       const token = await AsyncStorage.getItem("token");
-      await axios.post(`${BACKEND}/api/rooms`, manualForm, {
+      const payload = {
+        room_number: manualForm.room_number,
+        floor: parseInt(manualForm.floor),
+        sharing: parseInt(manualForm.sharing),
+        side:
+          typeof manualForm.side === "string"
+            ? manualForm.side.charAt(0).toUpperCase() +
+              manualForm.side.slice(1).toLowerCase()
+            : manualForm.side,
+      };
+
+      await axios.post(`${BACKEND}/api/rooms`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       showToast(`Room ${manualForm.room_number} added.`, "success");
+
+      setManualForm({
+        room_number: "",
+        floor: "",
+        side: "",
+        sharing: "",
+      });
+
       fetchRooms();
     } catch {
       showToast(`Unable to add room.`, "error");
@@ -157,12 +175,26 @@ export default function Rooms() {
   const saveEdit = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
-      await axios.put(`${BACKEND}/api/rooms/${editRoomId}`, editForm, {
+
+      const payload = {
+        ...editForm,
+        floor: parseInt(editForm.floor),
+        sharing: parseInt(editForm.sharing),
+        side:
+          typeof editForm.side === "string"
+            ? editForm.side.charAt(0).toUpperCase() +
+              editForm.side.slice(1).toLowerCase()
+            : editForm.side,
+      };
+
+      await axios.put(`${BACKEND}/api/rooms/${editRoomId}`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       showToast(`Updated successfully.`, "success");
+
       setEditRoomId(null);
+      setEditForm({});
       fetchRooms();
     } catch {
       showToast(`Failed to update room.`, "error");
@@ -337,7 +369,7 @@ function WingList({
               saveEdit={saveEdit}
               deleteRoom={deleteRoom}
               setEditRoomId={setEditRoomId}
-              showToast={showToast} // FIXED
+              showToast={showToast}
             />
           ))}
       </View>
@@ -428,7 +460,7 @@ function RoomCard({
   saveEdit,
   deleteRoom,
   setEditRoomId,
-  showToast, // FIXED
+  showToast,
 }) {
   const full = room.occupied >= room.sharing;
 
@@ -491,7 +523,8 @@ function RoomCard({
             Floor {room.floor} • {room.side}
           </Text>
           <Text style={styles.occupancy}>
-            Sharing: {room.sharing} | Occupied: {room.occupied}
+            Sharing: {room.sharing} | Occupied: {room.occupied} | Available:{" "}
+            {room.available ?? Math.max(room.sharing - room.occupied, 0)}
           </Text>
 
           <View style={styles.btnRow}>
