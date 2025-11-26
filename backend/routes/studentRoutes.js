@@ -18,7 +18,7 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
     if (!email.endsWith("@cit_nc.edu.in"))
       return res.status(400).json({ message: "Invalid college email" });
 
-    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [
+    const existing = await pool.query("SELECT id FROM users WHERE email=$1", [
       email,
     ]);
     if (existing.rows.length > 0)
@@ -33,8 +33,9 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
       [name, email, hashedPassword]
     );
 
+    console.log(`✅ Registered new student: ${email}`);
     res.status(201).json({
-      message: "Student registered successfully",
+      message: "Student registered successfully ✅",
       student: result.rows[0],
     });
   } catch (err) {
@@ -44,51 +45,52 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🧾 Get all past students from student_history
-   NOTE: stores remarks & complaints as structured JSON arrays
+   🧾 Get all students history
+   (From table: student_history)
 ===================================================== */
 router.get("/history", authMiddleware, isWarden, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT 
-        id,
-        user_id,
-        name,
-        email,
-        dept_branch,
-        year,
-        usn,
-        batch,
-        room_no,
-        hostel_id,
-        phone_number,
-        gender,
-        dob,
-        address,
-        father_name,
-        father_number,
-        mother_name,
-        mother_number,
-        profile_photo,
-        -- remarks and complaints are already stored as jsonb in student_history,
-        -- return them as-is (they should be arrays or empty arrays)
-        COALESCE(remarks, '[]'::jsonb) AS remarks,
-        COALESCE(complaints, '[]'::jsonb) AS complaints,
-        created_at,
-        left_at
-      FROM student_history
-      ORDER BY left_at DESC NULLS LAST;
-    `);
+    const result = await pool.query(
+      `SELECT 
+          id,
+          user_id,
+          name,
+          email,
+          college_domain,
+          role,
+          usn,
+          dept_branch,
+          year,
+          batch,
+          room_no,
+          hostel_id,
+          phone_number,
+          gender,
+          dob,
+          address,
+          father_name,
+          father_number,
+          mother_name,
+          mother_number,
+          profile_photo,
+          remarks,
+          complaints,
+          created_at,
+          left_at
+       FROM student_history
+       ORDER BY left_at DESC NULLS LAST`
+    );
 
-    res.status(200).json(result.rows);
+    console.log(`✅ students history fetched: ${result.rows.length}`);
+    res.json(result.rows);
   } catch (err) {
-    console.error("❌ Error fetching student history:", err);
-    res.status(500).json({ message: "Error fetching student history" });
+    console.error("❌ Error fetching students history:", err);
+    res.status(500).json({ message: "Error fetching students history" });
   }
 });
 
 /* =====================================================
-   🧍 Get all active students (Warden/Admin only)
+   🧍 Get all ACTIVE students (Warden/Admin only)
 ===================================================== */
 router.get("/", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -102,6 +104,8 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
        WHERE u.role = 'student'
        ORDER BY u.created_at DESC`
     );
+
+    console.log(`✅ Active students fetched: ${result.rows.length}`);
     res.json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching students:", err);
@@ -110,39 +114,40 @@ router.get("/", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🧍 Get single student (with full profile info)
-   - Works for active users only (data lives in users + student_profiles)
+   🧍 Get single ACTIVE student (full profile)
 ===================================================== */
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const requester = req.user;
 
-    if (!id || id === "null" || isNaN(Number(id))) {
+    if (!id || isNaN(Number(id))) {
       return res.status(400).json({ message: "Invalid student ID" });
     }
 
-    // students can only fetch their own profile
+    // Students can only fetch themselves
     if (requester.role === "student" && Number(requester.id) !== Number(id)) {
-      return res.status(403).json({ message: "Unauthorized access" });
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
     const student = await pool.query(
       `SELECT 
           u.id, u.name, u.email, u.role,
-          sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no, sp.hostel_id,
+          sp.usn, sp.dept_branch, sp.year, sp.batch,
+          sp.room_no, sp.hostel_id,
           sp.phone_number, sp.gender, sp.dob, sp.address,
           sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
           sp.profile_photo, sp.created_at, sp.updated_at
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
-       WHERE u.id = $1 AND u.role = 'student'`,
+       WHERE u.id=$1 AND u.role='student'`,
       [id]
     );
 
     if (student.rows.length === 0)
       return res.status(404).json({ message: "Student not found" });
 
+    console.log(`✅ Student fetched for ID ${id}`);
     res.json(student.rows[0]);
   } catch (err) {
     console.error("❌ Error fetching student:", err);
@@ -151,8 +156,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 });
 
 /* =====================================================
-   📝 Add or update student profile (Warden only)
-   - Keeps room occupancy logic minimal here (if you want advanced locking, add FOR UPDATE in room ops)
+   📝 Add or update student profile
 ===================================================== */
 router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
@@ -179,17 +183,18 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
     await client.query("BEGIN");
 
     const existing = await client.query(
-      "SELECT id, room_no FROM student_profiles WHERE user_id = $1",
+      "SELECT id, room_no FROM student_profiles WHERE user_id=$1",
       [id]
     );
 
-    // Update or insert profile
+    // Update
     if (existing.rows.length > 0) {
       await client.query(
         `UPDATE student_profiles
-         SET usn=$1, dept_branch=$2, year=$3, batch=$4, room_no=$5, gender=$6, dob=$7,
-             hostel_id=$8, phone_number=$9, address=$10, father_name=$11, father_number=$12,
-             mother_name=$13, mother_number=$14, profile_photo=$15, updated_at=NOW()
+         SET usn=$1, dept_branch=$2, year=$3, batch=$4, room_no=$5,
+             gender=$6, dob=$7, hostel_id=$8, phone_number=$9, address=$10,
+             father_name=$11, father_number=$12, mother_name=$13, mother_number=$14,
+             profile_photo=$15, updated_at=NOW()
          WHERE user_id=$16`,
         [
           usn,
@@ -210,10 +215,10 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
           id,
         ]
       );
-      console.log(`✅ Updated profile for user_id=${id}`);
     } else {
+      // Insert
       await client.query(
-        `INSERT INTO student_profiles
+        `INSERT INTO student_profiles 
          (user_id, usn, dept_branch, year, batch, room_no, gender, dob, hostel_id,
           phone_number, address, father_name, father_number, mother_name,
           mother_number, profile_photo)
@@ -237,28 +242,21 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
           profile_photo,
         ]
       );
-      console.log(`✅ Inserted profile for user_id=${id}`);
     }
 
-    // NOTE: room occupancy adjustments were in older code.
-    // If you maintain rooms table occupancy, do that here with FOR UPDATE locks,
-    // as shown previously in your history code. (Left out to keep this route focused.)
     await client.query("COMMIT");
-    res.json({ message: "Student details saved successfully" });
+    res.json({ message: "Student details saved successfully ✅" });
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
+    await client.query("ROLLBACK");
     console.error("❌ Error updating student details:", err);
-    res.status(500).json({ message: "Server error while saving student info" });
+    res.status(500).json({ message: "Error updating student details" });
   } finally {
     client.release();
   }
 });
 
 /* =====================================================
-   ❌ Delete student (Move to student_history then delete)
-   - Store structured remarks & complaints JSON arrays inside student_history
-   - Transactional and safe
-   - Attendance NOT moved (preserved design decision)
+   ❌ Delete student → Move to student_history
 ===================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
@@ -271,110 +269,85 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
 
     await client.query("BEGIN");
 
-    // Verify student exists and grab combined profile
-    const chk = await client.query(
-      `SELECT u.id, u.name, u.email, u.role, u.college_domain, u.created_at,
-              sp.usn, sp.dept_branch, sp.year, sp.batch, sp.room_no, sp.hostel_id,
-              sp.phone_number, sp.gender, sp.dob, sp.address,
-              sp.father_name, sp.father_number, sp.mother_name, sp.mother_number,
-              sp.profile_photo
+    // Fetch entire student record
+    const result = await client.query(
+      `SELECT 
+         u.id AS user_id, u.name, u.email, u.role, u.college_domain, u.created_at,
+         sp.usn, sp.dept_branch, sp.year, sp.batch,
+         sp.room_no, sp.hostel_id, sp.phone_number,
+         sp.gender, sp.dob, sp.address,
+         sp.father_name, sp.father_number,
+         sp.mother_name, sp.mother_number,
+         sp.profile_photo
        FROM users u
        LEFT JOIN student_profiles sp ON sp.user_id = u.id
-       WHERE u.id = $1 AND u.role = 'student'`,
+       WHERE u.id=$1 AND u.role='student'`,
       [id]
     );
 
-    if (chk.rows.length === 0) {
+    if (result.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Student not found" });
     }
 
-    // Insert into student_history with structured JSONB remarks & complaints.
-    // We build compact JSON objects (select only the fields the frontend needs)
+    const s = result.rows[0];
+
+    // Insert into student_history
     await client.query(
       `INSERT INTO student_history (
-         user_id, name, email, usn, dept_branch, year, batch, room_no, hostel_id,
-         phone_number, gender, dob, address, father_name, father_number,
-         mother_name, mother_number, profile_photo, remarks, complaints,
-         role, college_domain, created_at, left_at
-       )
-       SELECT
-         u.id,
-         u.name,
-         u.email,
-         sp.usn,
-         sp.dept_branch,
-         sp.year,
-         sp.batch,
-         sp.room_no,
-         sp.hostel_id,
-         sp.phone_number,
-         sp.gender,
-         sp.dob,
-         sp.address,
-         sp.father_name,
-         sp.father_number,
-         sp.mother_name,
-         sp.mother_number,
-         sp.profile_photo,
-         COALESCE((
-           SELECT jsonb_agg(jsonb_build_object(
-             'id', r.id,
-             'remark', r.remark,
-             'created_at', r.created_at,
-             'warden_id', r.warden_id,
-             'warden_name', wr.name
-           ) ORDER BY r.created_at)
-           FROM student_remarks r
-           LEFT JOIN users wr ON wr.id = r.warden_id
-           WHERE r.student_id = u.id
-         ), '[]'::jsonb) AS remarks,
-         COALESCE((
-           SELECT jsonb_agg(jsonb_build_object(
-             'id', c.id,
-             'title', c.title,
-             'description', c.description,
-             'status', c.status,
-             'room_no', c.room_no,
-             'created_at', c.created_at,
-             'updated_at', c.updated_at,
-             'user_id', c.user_id,
-             'student_id', c.student_id
-           ) ORDER BY c.created_at)
-           FROM complaints c
-           WHERE c.student_id = u.id OR c.user_id = u.id
-         ), '[]'::jsonb) AS complaints,
-         u.role,
-         u.college_domain,
-         u.created_at,
-         NOW()
-       FROM users u
-       LEFT JOIN student_profiles sp ON sp.user_id = u.id
-       WHERE u.id = $1 AND u.role = 'student'`,
-      [id]
+        user_id, name, email, college_domain, role,
+        usn, dept_branch, year, batch, room_no, hostel_id,
+        phone_number, gender, dob, address,
+        father_name, father_number, mother_name, mother_number,
+        profile_photo,
+        remarks,
+        complaints,
+        created_at,
+        left_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,
+        $6,$7,$8,$9,$10,$11,
+        $12,$13,$14,$15,
+        $16,$17,$18,$19,
+        $20,
+        '[]',
+        '[]',
+        $21,
+        NOW()
+      )`,
+      [
+        s.user_id,
+        s.name,
+        s.email,
+        s.college_domain,
+        s.role,
+        s.usn,
+        s.dept_branch,
+        s.year,
+        s.batch,
+        s.room_no,
+        s.hostel_id,
+        s.phone_number,
+        s.gender,
+        s.dob,
+        s.address,
+        s.father_name,
+        s.father_number,
+        s.mother_name,
+        s.mother_number,
+        s.profile_photo,
+        s.created_at,
+      ]
     );
 
-    // Delete remarks & complaints (both schemas) after archiving
-    await client.query(`DELETE FROM student_remarks WHERE student_id = $1`, [
-      id,
-    ]);
-
-    await client.query(
-      `DELETE FROM complaints WHERE student_id = $1 OR user_id = $1`,
-      [id]
-    );
-
-    // Remove profile and user
-    await client.query("DELETE FROM student_profiles WHERE user_id = $1", [id]);
-    await client.query("DELETE FROM users WHERE id = $1", [id]);
+    await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
+    await client.query("DELETE FROM users WHERE id=$1", [id]);
 
     await client.query("COMMIT");
-
-    res.json({
-      message: "Student archived into student_history and deleted successfully",
-    });
+    res.json({ message: "Student moved to student_history ✅" });
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
+    await client.query("ROLLBACK");
     console.error("❌ Error deleting student:", err);
     res.status(500).json({ message: "Error deleting student" });
   } finally {

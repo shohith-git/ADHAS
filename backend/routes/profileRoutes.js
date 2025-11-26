@@ -9,6 +9,8 @@ const {
 
 /* =====================================================
    🟢 CREATE or UPDATE Student Profile (Warden only)
+   -----------------------------------------------------
+   POST /api/profile/create
 ===================================================== */
 router.post("/create", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -18,7 +20,7 @@ router.post("/create", authMiddleware, isWarden, async (req, res) => {
       id_number,
       dept_branch,
       year,
-      batch,
+      batch, // 🆕 Added
       room_no,
       phone_number,
       gender,
@@ -32,12 +34,12 @@ router.post("/create", authMiddleware, isWarden, async (req, res) => {
       hostel_id,
     } = req.body;
 
-    if (!user_id || !id_type || !id_number || !dept_branch || !year || !batch) {
-      return res.status(400).json({ message: "Required fields are missing" });
+    if (hostel_id && isNaN(Number(hostel_id))) {
+      return res.status(400).json({ message: "Hostel ID must be a number" });
     }
 
-    if (hostel_id && isNaN(Number(hostel_id))) {
-      return res.status(400).json({ message: "Hostel ID must be numeric" });
+    if (!user_id || !id_type || !id_number || !dept_branch || !year || !batch) {
+      return res.status(400).json({ message: "Required fields are missing" });
     }
 
     // Check if profile exists
@@ -47,16 +49,16 @@ router.post("/create", authMiddleware, isWarden, async (req, res) => {
     );
 
     if (check.rows.length > 0) {
-      // UPDATE
+      // Update existing profile
       const updateQuery = `
         UPDATE student_profiles SET
-          id_type=$2, id_number=$3, dept_branch=$4, year=$5, batch=$6, room_no=$7,
+           id_type=$2, id_number=$3, dept_branch=$4, year=$5, batch=$6, room_no=$7,
           phone_number=$8, gender=$9, dob=$10, address=$11,
           father_name=$12, father_number=$13, mother_name=$14, mother_number=$15,
-          profile_photo=$16, hostel_id=$17, updated_at=NOW()
+          profile_photo=$16, hostel_id=$17,  updated_at=NOW()
         WHERE user_id=$1
-        RETURNING *;`;
-
+        RETURNING *;
+      `;
       const result = await pool.query(updateQuery, [
         user_id,
         id_type,
@@ -82,18 +84,16 @@ router.post("/create", authMiddleware, isWarden, async (req, res) => {
         profile: result.rows[0],
       });
     } else {
-      // INSERT
+      // Insert new profile
       const insertQuery = `
         INSERT INTO student_profiles (
           user_id, id_type, id_number, dept_branch, year, batch, room_no,
           phone_number, gender, dob, address,
-          father_name, father_number, mother_name, mother_number,
-          profile_photo, hostel_id
+          father_name, father_number, mother_name, mother_number, profile_photo, hostel_id
         )
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
         RETURNING *;
       `;
-
       const result = await pool.query(insertQuery, [
         user_id,
         id_type,
@@ -126,48 +126,9 @@ router.post("/create", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   🟢 GET ALL Student Profiles (Warden only)
-   🔥 FIXED: Now placed BEFORE /:user_id
-===================================================== */
-router.get("/all", authMiddleware, isWarden, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        u.id AS user_id,
-        u.name AS student_name,
-        u.email,
-        p.id_type,
-        p.id_number,
-        p.dept_branch,
-        p.year,
-        p.batch,
-        p.room_no,
-        p.phone_number,
-        p.gender,
-        p.dob,
-        p.address,
-        p.father_name,
-        p.father_number,
-        p.mother_name,
-        p.mother_number,
-        p.profile_photo,
-        p.hostel_id,
-        p.updated_at
-      FROM student_profiles p
-      JOIN users u ON u.id = p.user_id
-      WHERE u.role = 'student'
-      ORDER BY u.id ASC;
-    `);
-
-    res.status(200).json(result.rows);
-  } catch (err) {
-    console.error("❌ Error fetching all student profiles:", err.message);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-/* =====================================================
-   🟠 GET Student Profile (Student Only)
+   🟠 GET Student Profile (Student View Only)
+   -----------------------------------------------------
+   GET /api/profile/:user_id
 ===================================================== */
 router.get("/:user_id", authMiddleware, isStudent, async (req, res) => {
   try {
@@ -185,6 +146,41 @@ router.get("/:user_id", authMiddleware, isStudent, async (req, res) => {
     res.status(200).json(result.rows[0]);
   } catch (err) {
     console.error("❌ Error fetching profile:", err.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/* =====================================================
+   🟢 GET All Student Profiles (Warden View)
+   -----------------------------------------------------
+   GET /api/profile/all
+===================================================== */
+router.get("/all", authMiddleware, isWarden, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        u.id AS user_id,
+        u.name AS student_name,
+        u.email,
+        p.id_type,
+        p.id_number,
+        p.dept_branch,
+        p.year,
+        p.batch,
+        p.room_no,
+        p.phone_number,
+        p.gender,
+        p.father_name,
+        p.mother_name,
+        p.hostel_id
+      FROM student_profiles p
+      JOIN users u ON u.id = p.user_id
+      WHERE u.role = 'student'
+      ORDER BY u.id ASC;
+    `);
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching all student profiles:", err.message);
     res.status(500).json({ message: "Internal server error" });
   }
 });

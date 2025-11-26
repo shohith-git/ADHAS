@@ -35,7 +35,7 @@ function decodeJwtPayload(token) {
 
 export default function StudentAttendance() {
   const router = useRouter();
-  const BACKEND = "http://172.29.206.21:5000";
+  const BACKEND = "http://10.49.102.21:5000";
 
   const [records, setRecords] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
