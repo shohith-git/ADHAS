@@ -1,4 +1,4 @@
-// frontend/app/warden/past-students.jsx
+// frontend/app/warden/studens-history.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,10 +8,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
+  Dimensions,
 } from "react-native";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
 export default function StudentsHistory() {
   const [pastStudents, setStudentsHistory] = useState([]);
@@ -21,14 +24,12 @@ export default function StudentsHistory() {
   const [remarks, setRemarks] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
 
   const BACKEND = "http://10.49.102.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  /* ================================================
-     FETCH ALL STUDENTS HISTORY
-  ================================================= */
   const fetchStudentsHistory = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/students/history`, {
@@ -47,19 +48,14 @@ export default function StudentsHistory() {
     fetchStudentsHistory();
   }, []);
 
-  /* ================================================
-     OPEN MODAL — LOAD REMARKS & COMPLAINTS PROPERLY
-     Priority:
-     1. Use stored JSON (remarks, complaints)
-     2. Else fallback to API (active student case)
-  ================================================= */
   const openStudentModal = async (student) => {
     setSelectedStudent(student);
     setDetailsLoading(true);
+    setActiveTab("details");
 
-    const idForFetch = student.user_id ?? student.id;
+    const idForFetch = student.user_id ?? student.id; // history rows may use user_id or id
 
-    // ------------ REMARKS ------------
+    // REMARKS
     if (student.remarks && Array.isArray(student.remarks)) {
       setRemarks(student.remarks);
     } else {
@@ -68,12 +64,13 @@ export default function StudentsHistory() {
           headers: { Authorization: `Bearer ${token}` },
         });
         setRemarks(remRes.data || []);
-      } catch {
+      } catch (err) {
+        console.warn("No remarks via API or failed:", err);
         setRemarks([]);
       }
     }
 
-    // ------------ COMPLAINTS ------------
+    // COMPLAINTS
     if (student.complaints && Array.isArray(student.complaints)) {
       setComplaints(student.complaints);
     } else {
@@ -83,7 +80,8 @@ export default function StudentsHistory() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setComplaints(compRes.data || []);
-      } catch {
+      } catch (err) {
+        console.warn("No complaints via API or failed:", err);
         setComplaints([]);
       }
     }
@@ -116,236 +114,324 @@ export default function StudentsHistory() {
         {pastStudents.length === 0 ? (
           <Text style={styles.emptyText}>No Students History found.</Text>
         ) : (
-          pastStudents.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              style={styles.card}
-              activeOpacity={0.85}
-              onPress={() => openStudentModal(s)}
-            >
-              <Text style={styles.name}>{s.name}</Text>
-              <Text style={styles.metaText}>
-                🏢 Hostel ID: {s.hostel_id || "—"}
-              </Text>
-              <Text style={styles.email}>{s.email || "—"}</Text>
-              <Text style={styles.role}>
-                🎓 {s.dept_branch || s.role || "—"} • {s.year || "—"}
-              </Text>
-              <Text style={styles.date}>Left: {fmtDate(s.left_at)}</Text>
-            </TouchableOpacity>
-          ))
+          pastStudents.map((s) => {
+            const key = s.id ?? s.user_id ?? Math.random();
+            return (
+              <TouchableOpacity
+                key={key}
+                style={styles.card}
+                activeOpacity={0.88}
+                onPress={() => openStudentModal(s)}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.name}>{s.name}</Text>
+                    <Text style={styles.metaText}>
+                      🏢 Hostel ID: {s.hostel_id || "—"}
+                    </Text>
+                    <Text style={styles.email}>{s.email || "—"}</Text>
+                    <Text style={styles.role}>
+                      🎓 {s.dept_branch || s.role || "—"} • {s.year || "—"}
+                    </Text>
+                  </View>
+
+                  <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
+                    <Text style={styles.date}>Left: {fmtDate(s.left_at)}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
 
-      {/* ====================== MODAL ====================== */}
+      {/* ========== MODAL ========== */}
       {selectedStudent && (
         <Modal
           visible={true}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setSelectedStudent(null)}
+          onRequestClose={() => {
+            setSelectedStudent(null);
+            setRemarks([]);
+            setComplaints([]);
+          }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalBox}>
+          <View style={modalStyles.overlay}>
+            <View style={modalStyles.modalBox}>
+              {/* Header */}
+              <View style={modalStyles.header}>
+                <View style={{ flex: 1 }}>
+                  <Text style={modalStyles.headerName}>
+                    {selectedStudent.name}
+                  </Text>
+                  <Text style={modalStyles.headerSub}>
+                    {selectedStudent.email}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedStudent(null);
+                    setRemarks([]);
+                    setComplaints([]);
+                  }}
+                  style={modalStyles.iconWrap}
+                >
+                  <Ionicons name="close" size={20} color="#0b5cff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Tabs */}
+              <View style={modalStyles.tabBar}>
+                <TabButton
+                  label="Details"
+                  active={activeTab === "details"}
+                  onPress={() => setActiveTab("details")}
+                />
+                <TabButton
+                  label={`Remarks (${remarks.length})`}
+                  active={activeTab === "remarks"}
+                  onPress={() => setActiveTab("remarks")}
+                />
+                <TabButton
+                  label={`Complaints (${complaints.length})`}
+                  active={activeTab === "complaints"}
+                  onPress={() => setActiveTab("complaints")}
+                />
+              </View>
+
+              {/* Content */}
               <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 14 }}
+                contentContainerStyle={{ padding: 16, paddingBottom: 26 }}
               >
-                <View style={styles.headerRow}>
-                  <View>
-                    <Text style={styles.modalTitle}>
-                      {selectedStudent.name}
-                    </Text>
-                    <Text style={styles.subTitle}>{selectedStudent.email}</Text>
-                  </View>
-                </View>
+                {activeTab === "details" && (
+                  <>
+                    <View style={modalStyles.card}>
+                      <Text style={modalStyles.cardTitle}>Student Details</Text>
 
-                {/* PROFILE DETAILS */}
-                <View style={[styles.sectionCard, styles.shadowCard]}>
-                  <Text style={styles.sectionHeader}>📋 Student Details</Text>
-
-                  {[
-                    ["Hostel ID", selectedStudent.hostel_id],
-                    ["USN", selectedStudent.usn],
-                    ["Department", selectedStudent.dept_branch],
-                    ["Year", selectedStudent.year],
-                    ["Batch", selectedStudent.batch],
-                    ["Phone", selectedStudent.phone_number],
-                    ["Gender", selectedStudent.gender],
-                    [
-                      "DOB",
-                      selectedStudent.dob
-                        ? new Date(selectedStudent.dob).toLocaleDateString()
-                        : "N/A",
-                    ],
-                  ].map(([label, val], idx) => (
-                    <View key={idx} style={styles.detailRow}>
-                      <Text style={styles.label}>{label}</Text>
-                      <Text style={styles.value}>{val || "N/A"}</Text>
-                    </View>
-                  ))}
-
-                  <View style={{ marginTop: 8 }}>
-                    <Text style={styles.label}>Address</Text>
-                    <Text style={[styles.value, { marginTop: 4 }]}>
-                      {selectedStudent.address || "N/A"}
-                    </Text>
-                  </View>
-
-                  <View style={{ marginTop: 12 }}>
-                    <Text style={styles.label}>Joined</Text>
-                    <Text style={styles.value}>
-                      {fmtDate(selectedStudent.created_at)}
-                    </Text>
-
-                    <Text style={[styles.label, { marginTop: 8 }]}>Left</Text>
-                    <Text style={styles.value}>
-                      {fmtDate(selectedStudent.left_at)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* PARENTS */}
-                {/* PARENTS */}
-                <View style={styles.parentContainer}>
-                  <Text style={styles.parentTitle}>👨 Father's Details</Text>
-                  <Text style={styles.parentInfo}>
-                    Name: {selectedStudent.father_name || "N/A"}
-                  </Text>
-                  <Text style={styles.parentInfo}>
-                    Phone: {selectedStudent.father_number || "N/A"}
-                  </Text>
-
-                  <Text style={[styles.parentTitle, { marginTop: 10 }]}>
-                    👩 Mother's Details
-                  </Text>
-                  <Text style={styles.parentInfo}>
-                    Name: {selectedStudent.mother_name || "N/A"}
-                  </Text>
-                  <Text style={styles.parentInfo}>
-                    Phone: {selectedStudent.mother_number || "N/A"}
-                  </Text>
-                </View>
-
-                {/* REMARKS */}
-                <View style={[styles.sectionCard, styles.shadowCard]}>
-                  <Text style={styles.sectionHeader}>🗒️ Warden Remarks</Text>
-
-                  {detailsLoading ? (
-                    <ActivityIndicator size="small" color="#2563eb" />
-                  ) : remarks.length === 0 ? (
-                    <Text style={styles.emptyText}>No remarks recorded.</Text>
-                  ) : (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      snapToInterval={280}
-                      contentContainerStyle={{ paddingVertical: 6 }}
-                    >
-                      {remarks.map((r) => (
-                        <View key={r.id} style={styles.remarkCardHorizontal}>
-                          <Text style={styles.remarkText}>{r.remark}</Text>
-                          <Text style={styles.remarkDate}>
-                            {new Date(r.created_at).toLocaleDateString(
-                              "en-IN",
-                              {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              }
-                            )}{" "}
-                            • {r.warden_name || "Warden"}
-                          </Text>
+                      <View style={modalStyles.twoCol}>
+                        <View style={modalStyles.col}>
+                          <DetailRow
+                            label="Hostel ID"
+                            value={selectedStudent.hostel_id}
+                          />
+                          <DetailRow label="USN" value={selectedStudent.usn} />
+                          <DetailRow
+                            label="Department"
+                            value={selectedStudent.dept_branch}
+                          />
+                          <DetailRow
+                            label="Year"
+                            value={selectedStudent.year}
+                          />
+                          <DetailRow
+                            label="Batch"
+                            value={selectedStudent.batch}
+                          />
                         </View>
-                      ))}
-                    </ScrollView>
-                  )}
-                </View>
 
-                {/* COMPLAINTS */}
-                <View style={[styles.sectionCard, styles.shadowCard]}>
-                  <Text style={styles.sectionHeader}>⚠️ Complaints</Text>
+                        <View style={modalStyles.col}>
+                          <DetailRow
+                            label="Phone"
+                            value={selectedStudent.phone_number}
+                          />
+                          <DetailRow
+                            label="Gender"
+                            value={selectedStudent.gender}
+                          />
+                          <DetailRow
+                            label="DOB"
+                            value={
+                              selectedStudent.dob
+                                ? new Date(
+                                    selectedStudent.dob
+                                  ).toLocaleDateString()
+                                : "—"
+                            }
+                          />
+                          <DetailRow
+                            label="Joined"
+                            value={fmtDate(selectedStudent.created_at)}
+                          />
+                          <DetailRow
+                            label="Left"
+                            value={fmtDate(selectedStudent.left_at)}
+                          />
+                        </View>
+                      </View>
 
-                  {detailsLoading ? (
-                    <ActivityIndicator size="small" color="#2563eb" />
-                  ) : complaints.length === 0 ? (
-                    <Text style={styles.emptyText}>No complaints filed.</Text>
-                  ) : (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      snapToInterval={300}
-                      contentContainerStyle={{ paddingVertical: 6 }}
-                    >
-                      {complaints.map((c) => {
-                        const getColors = (status) => {
-                          if (!status) return ["#fde68a", "#92400e"];
-                          status = status.toLowerCase();
-                          if (status === "resolved")
-                            return ["#bbf7d0", "#065f46"];
-                          if (status === "denied")
-                            return ["#fecaca", "#991b1b"];
-                          return ["#fde68a", "#92400e"];
-                        };
+                      <View style={{ marginTop: 12 }}>
+                        <Text style={modalStyles.smallLabel}>Address</Text>
+                        <Text style={[modalStyles.valueText, { marginTop: 6 }]}>
+                          {selectedStudent.address || "N/A"}
+                        </Text>
+                      </View>
+                    </View>
 
-                        const [bgColor, textColor] = getColors(c.status);
+                    <View style={modalStyles.parentCard}>
+                      <Text style={modalStyles.parentHeader}>
+                        👨 Father's Details
+                      </Text>
+                      <Text style={modalStyles.parentText}>
+                        Name: {selectedStudent.father_name || "N/A"}
+                      </Text>
+                      <Text style={modalStyles.parentText}>
+                        Phone: {selectedStudent.father_number || "N/A"}
+                      </Text>
 
-                        return (
+                      <View style={{ height: 10 }} />
+
+                      <Text style={modalStyles.parentHeader}>
+                        👩 Mother's Details
+                      </Text>
+                      <Text style={modalStyles.parentText}>
+                        Name: {selectedStudent.mother_name || "N/A"}
+                      </Text>
+                      <Text style={modalStyles.parentText}>
+                        Phone: {selectedStudent.mother_number || "N/A"}
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {activeTab === "remarks" && (
+                  <View style={[modalStyles.card, { paddingBottom: 20 }]}>
+                    <Text style={modalStyles.cardTitle}>🗒️ Warden Remarks</Text>
+
+                    {detailsLoading ? (
+                      <ActivityIndicator size="small" color="#2563eb" />
+                    ) : remarks.length === 0 ? (
+                      <Text style={modalStyles.emptyText}>
+                        No remarks recorded.
+                      </Text>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingVertical: 10 }}
+                      >
+                        {remarks.map((r) => (
                           <View
-                            key={c.id}
-                            style={styles.complaintCardHorizontal}
+                            key={r.id ?? JSON.stringify(r)}
+                            style={modalStyles.remarkCard}
                           >
-                            <Text style={styles.complaintTitle}>{c.title}</Text>
-                            <Text
-                              style={styles.complaintDesc}
-                              numberOfLines={4}
-                            >
-                              {c.description}
+                            <Text style={modalStyles.remarkText}>
+                              {r.remark}
                             </Text>
+                            <Text style={modalStyles.remarkMeta}>
+                              {r.created_at
+                                ? new Date(r.created_at).toLocaleString(
+                                    "en-IN",
+                                    {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    }
+                                  )
+                                : "—"}{" "}
+                              •{" "}
+                              {r.warden_id
+                                ? `Warden #${r.warden_id}`
+                                : "Warden"}
+                            </Text>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
 
-                            <Text style={styles.dateText}>
-                              Raised: {fmtDate(c.created_at)}
-                            </Text>
-                            <Text style={styles.dateText}>
-                              Updated: {fmtDate(c.updated_at)}
-                            </Text>
+                {activeTab === "complaints" && (
+                  <View style={[modalStyles.card, { paddingBottom: 20 }]}>
+                    <Text style={modalStyles.cardTitle}>⚠️ Complaints</Text>
 
+                    {detailsLoading ? (
+                      <ActivityIndicator size="small" color="#2563eb" />
+                    ) : complaints.length === 0 ? (
+                      <Text style={modalStyles.emptyText}>
+                        No complaints filed.
+                      </Text>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingVertical: 10 }}
+                      >
+                        {complaints.map((c) => {
+                          const [bgColor, textColor] = getComplaintColors(
+                            c.status
+                          );
+                          return (
                             <View
-                              style={[
-                                styles.statusBadge,
-                                { backgroundColor: bgColor },
-                              ]}
+                              key={c.id ?? JSON.stringify(c)}
+                              style={modalStyles.complaintCard}
                             >
+                              <Text style={modalStyles.complaintTitle}>
+                                {c.title}
+                              </Text>
                               <Text
+                                style={modalStyles.complaintDesc}
+                                numberOfLines={5}
+                              >
+                                {c.description}
+                              </Text>
+                              <Text style={modalStyles.dateText}>
+                                Raised: {fmtDate(c.created_at)}
+                              </Text>
+                              <Text style={modalStyles.dateText}>
+                                Updated: {fmtDate(c.updated_at)}
+                              </Text>
+
+                              <View
                                 style={[
-                                  styles.statusText,
-                                  { color: textColor },
+                                  modalStyles.statusBadge,
+                                  { backgroundColor: bgColor },
                                 ]}
                               >
-                                {c.status?.toUpperCase()}
-                              </Text>
+                                <Text
+                                  style={[
+                                    modalStyles.statusText,
+                                    { color: textColor },
+                                  ]}
+                                >
+                                  {c.status
+                                    ? c.status.toUpperCase()
+                                    : "PENDING"}
+                                </Text>
+                              </View>
                             </View>
-                          </View>
-                        );
-                      })}
-                    </ScrollView>
-                  )}
-                </View>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
               </ScrollView>
 
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => {
-                  setSelectedStudent(null);
-                  setRemarks([]);
-                  setComplaints([]);
-                }}
-              >
-                <Ionicons name="close" size={18} color="#fff" />
-                <Text style={styles.closeText}>Close</Text>
-              </TouchableOpacity>
+              {/* Footer buttons */}
+              <View style={modalStyles.footerRow}>
+                <TouchableOpacity
+                  style={modalStyles.closeBtn}
+                  onPress={() => {
+                    setSelectedStudent(null);
+                    setRemarks([]);
+                    setComplaints([]);
+                  }}
+                >
+                  <Ionicons name="close" size={18} color="#fff" />
+                  <Text style={modalStyles.closeText}>Close</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -361,153 +447,270 @@ export default function StudentsHistory() {
   );
 }
 
-/* ===================== STYLES ===================== */
+/* ===================== Small helper components ===================== */
+
+function DetailRow({ label, value }) {
+  return (
+    <View style={modalStyles.detailRow}>
+      <Text style={modalStyles.smallLabel}>{label}</Text>
+      <Text style={modalStyles.valueText}>{value || "—"}</Text>
+    </View>
+  );
+}
+
+function TabButton({ label, active, onPress }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[modalStyles.tabBtn, active ? modalStyles.tabBtnActive : null]}
+    >
+      <Text
+        style={[
+          modalStyles.tabBtnText,
+          active ? modalStyles.tabBtnTextActive : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function getComplaintColors(status) {
+  if (!status) return ["#fde68a", "#92400e"];
+  const s = status.toLowerCase();
+  if (s === "resolved") return ["#bbf7d0", "#065f46"];
+  if (s === "denied") return ["#fecaca", "#991b1b"];
+  return ["#fde68a", "#92400e"];
+}
+
+/* ===================== Styles ===================== */
+
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
+  page: { backgroundColor: "#f3f6fb", flex: 1, padding: 20 },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#0b5cff",
-    marginBottom: 15,
+    marginBottom: 14,
   },
 
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: 12,
   },
 
   card: {
     width: "31%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    elevation: 3,
-  },
-
-  name: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
-  metaText: { fontSize: 13, color: "#475569", marginTop: 4 },
-  email: { color: "#475569", marginVertical: 4 },
-  role: { fontSize: 13, color: "#2563eb", fontWeight: "600" },
-  date: { fontSize: 12, color: "#64748b", marginTop: 6 },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  modalBox: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    width: "92%",
-    maxHeight: "88%",
-    padding: 18,
-    elevation: 8,
-  },
-
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    marginBottom: 10,
-  },
-
-  modalTitle: { fontSize: 20, fontWeight: "700", color: "#0f172a" },
-  subTitle: { fontSize: 13, color: "#475569" },
-
-  sectionCard: {
+    minWidth: 240,
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  shadowCard: { elevation: 3 },
-
-  sectionHeader: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0b5cff",
-    marginBottom: 8,
-  },
-
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    gap: 20,
-  },
-
-  label: {
-    width: 120,
-    color: "#475569",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-
-  value: {
-    flexShrink: 1,
-    color: "#0f172a",
-    fontWeight: "500",
-    fontSize: 14,
-  },
-
-  modalMeta: { color: "#475569", fontSize: 14, marginVertical: 2 },
-
-  remarkCardHorizontal: {
-    width: 260,
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    padding: 12,
-    marginRight: 14,
-    borderLeftWidth: 3,
-    borderLeftColor: "#0b5cff",
+    borderColor: "#e6eefc",
     elevation: 2,
   },
 
-  remarkText: { fontSize: 14, color: "#0f172a", lineHeight: 20 },
-  remarkDate: { fontSize: 12, color: "#64748b", marginTop: 6 },
-
-  complaintCardHorizontal: {
-    width: 290,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginRight: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    elevation: 3,
-  },
-
-  complaintTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a" },
-  complaintDesc: {
-    fontSize: 13,
-    color: "#475569",
-    marginTop: 6,
-    lineHeight: 18,
-  },
-
-  dateText: { fontSize: 12, color: "#64748b" },
-
-  statusBadge: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    alignSelf: "flex-start",
-    marginTop: 8,
-  },
-  statusText: { fontWeight: "700", fontSize: 12 },
+  name: { fontSize: 15, fontWeight: "700", color: "#0f172a" },
+  metaText: { fontSize: 12, color: "#64748b", marginTop: 6 },
+  email: { color: "#475569", marginVertical: 6 },
+  role: { fontSize: 13, color: "#2563eb", fontWeight: "600" },
+  date: { fontSize: 12, color: "#64748b", marginTop: 6 },
 
   emptyText: {
     textAlign: "center",
     color: "#94a3b8",
     fontSize: 14,
     marginTop: 8,
+  },
+
+  backBtn: {
+    marginTop: 18,
+    backgroundColor: "#0b5cff",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  backBtnText: { color: "#fff", fontWeight: "700" },
+
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+});
+
+/* ===================== Modal styles ===================== */
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(6,8,15,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 14,
+  },
+  modalBox: {
+    width: SCREEN_W > 1200 ? "86%" : "94%",
+    maxHeight: SCREEN_H * 0.88,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 12,
+  },
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderColor: "#eef2ff",
+  },
+  headerName: { fontSize: 20, fontWeight: "800", color: "#0b5cff" },
+  headerSub: { fontSize: 13, color: "#475569", marginTop: 2 },
+  iconWrap: {
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e6eefc",
+    marginLeft: 12,
+  },
+
+  tabBar: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderColor: "#f1f5f9",
+    backgroundColor: "#fbfdff",
+  },
+  tabBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  tabBtnActive: {
+    backgroundColor: "#e6f0ff",
+  },
+  tabBtnText: {
+    color: "#475569",
+    fontWeight: "700",
+  },
+  tabBtnTextActive: {
+    color: "#0b5cff",
+  },
+
+  card: {
+    backgroundColor: "#fff",
+    padding: 14,
+    marginVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#eef2ff",
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0b5cff",
+    marginBottom: 10,
+  },
+
+  twoCol: {
+    flexDirection: "row",
+    gap: 18,
+  },
+  col: {
+    flex: 1,
+    minWidth: 200,
+  },
+
+  detailRow: {
+    flexDirection: "row",
+    marginBottom: 10,
+  },
+  smallLabel: {
+    width: 110,
+    color: "#475569",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  valueText: {
+    flex: 1,
+    color: "#0f172a",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+
+  parentCard: {
+    backgroundColor: "#fff",
+    padding: 14,
+    marginVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#eef2ff",
+  },
+  parentHeader: { color: "#2563eb", fontWeight: "800", marginBottom: 6 },
+  parentText: { color: "#334155", fontSize: 14, marginBottom: 4 },
+
+  remarkCard: {
+    width: 320,
+    backgroundColor: "#f8fbff",
+    borderRadius: 10,
+    padding: 14,
+    marginRight: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#0b5cff",
+    elevation: 2,
+  },
+  remarkText: {
+    fontSize: 14,
+    color: "#0f172a",
+    lineHeight: 20,
+  },
+  remarkMeta: { marginTop: 8, fontSize: 12, color: "#64748b" },
+
+  complaintCard: {
+    width: 320,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 14,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#eef2ff",
+    elevation: 2,
+  },
+  complaintTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  complaintDesc: {
+    fontSize: 13,
+    color: "#475569",
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  dateText: { fontSize: 12, color: "#64748b" },
+
+  statusBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  statusText: { fontWeight: "800", fontSize: 12 },
+
+  footerRow: {
+    padding: 12,
+    borderTopWidth: 1,
+    borderColor: "#eef2ff",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   closeBtn: {
@@ -517,18 +720,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
-    marginTop: 6,
+    paddingHorizontal: 18,
   },
-  closeText: { color: "#fff", marginLeft: 8, fontWeight: "700" },
+  closeText: { color: "#fff", marginLeft: 8, fontWeight: "800" },
 
-  backBtn: {
-    marginTop: 16,
-    backgroundColor: "#0b5cff",
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
+  emptyText: {
+    textAlign: "center",
+    color: "#94a3b8",
+    fontSize: 14,
+    marginTop: 8,
   },
-  backBtnText: { color: "#fff", fontWeight: "700" },
-
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });
