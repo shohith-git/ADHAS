@@ -287,6 +287,7 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
 
 /* =====================================================
    ❌ Delete student → Move to student_history + free room
+   FINAL VERSION – EXACT DB MATCH
 ===================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
@@ -298,7 +299,7 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
 
     await client.query("BEGIN");
 
-    // Fetch student fully
+    // 1) FETCH STUDENT FULL DATA
     const result = await client.query(
       `SELECT 
          u.id AS user_id, u.name, u.email, u.role, 
@@ -323,7 +324,33 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
     const s = result.rows[0];
 
     /* -------------------------
-       FREE ROOM BEFORE DELETION
+       2) FETCH REMARKS (student_remarks)
+    ------------------------- */
+    const remarksRes = await client.query(
+      `SELECT id, student_id, warden_id, remark, created_at
+       FROM student_remarks
+       WHERE student_id=$1
+       ORDER BY created_at ASC`,
+      [id]
+    );
+
+    const remarks = remarksRes.rows || [];
+
+    /* -------------------------
+       3) FETCH COMPLAINTS
+    ------------------------- */
+    const complaintsRes = await client.query(
+      `SELECT id, title, description, status, created_at, updated_at
+       FROM complaints
+       WHERE user_id=$1
+       ORDER BY created_at ASC`,
+      [id]
+    );
+
+    const complaints = complaintsRes.rows || [];
+
+    /* -------------------------
+       4) FREE ROOM IF OCCUPIED
     ------------------------- */
     if (s.room_no) {
       await client.query(
@@ -337,7 +364,7 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
     }
 
     /* -------------------------
-       MOVE TO HISTORY TABLE
+       5) INSERT INTO student_history
     ------------------------- */
     await client.query(
       `INSERT INTO student_history (
@@ -357,9 +384,9 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
         $12,$13,$14,$15,
         $16,$17,$18,$19,
         $20,
-        '[]',
-        '[]',
         $21,
+        $22,
+        $23,
         NOW()
       )`,
       [
@@ -383,12 +410,20 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
         s.mother_name,
         s.mother_number,
         s.profile_photo,
+        JSON.stringify(remarks), // <-- EXACT match to table
+        JSON.stringify(complaints), // <-- EXACT match to table
         s.created_at,
       ]
     );
 
     /* -------------------------
-       DELETE FROM LIVE TABLES
+       6) DELETE CHILD TABLES FIRST
+    ------------------------- */
+    await client.query("DELETE FROM student_remarks WHERE student_id=$1", [id]);
+    await client.query("DELETE FROM complaints WHERE user_id=$1", [id]);
+
+    /* -------------------------
+       7) DELETE PROFILE + USER
     ------------------------- */
     await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
     await client.query("DELETE FROM users WHERE id=$1", [id]);
@@ -396,7 +431,11 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
     await client.query("COMMIT");
 
     res.json({
-      message: "Student moved to history and deleted successfully ✅",
+      message: "Student archived and deleted successfully ✅",
+      archived: {
+        complaints: complaints.length,
+        remarks: remarks.length,
+      },
     });
   } catch (err) {
     await client.query("ROLLBACK");
