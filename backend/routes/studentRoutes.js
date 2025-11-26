@@ -46,7 +46,7 @@ router.post("/register", authMiddleware, isWarden, async (req, res) => {
 
 /* =====================================================
    🧾 Get all students history
-   (From table: student_history)
+   (From student_history table)
 ===================================================== */
 router.get("/history", authMiddleware, isWarden, async (req, res) => {
   try {
@@ -125,7 +125,6 @@ router.get("/:id", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Invalid student ID" });
     }
 
-    // Students can only fetch themselves
     if (requester.role === "student" && Number(requester.id) !== Number(id)) {
       return res.status(403).json({ message: "Unauthorized" });
     }
@@ -156,7 +155,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 });
 
 /* =====================================================
-   📝 Add or update student profile
+   📝 Add or update student profile (room-safe version)
 ===================================================== */
 router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
@@ -187,7 +186,11 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       [id]
     );
 
-    // Update
+    const prevRoom = existing.rows[0]?.room_no || null;
+
+    /* -------------------------
+       1) UPDATE or INSERT PROFILE
+    ------------------------- */
     if (existing.rows.length > 0) {
       await client.query(
         `UPDATE student_profiles
@@ -216,13 +219,13 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
         ]
       );
     } else {
-      // Insert
       await client.query(
-        `INSERT INTO student_profiles 
-         (user_id, usn, dept_branch, year, batch, room_no, gender, dob, hostel_id,
-          phone_number, address, father_name, father_number, mother_name,
-          mother_number, profile_photo)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        `INSERT INTO student_profiles (
+          user_id, usn, dept_branch, year, batch, room_no,
+          gender, dob, hostel_id, phone_number, address,
+          father_name, father_number, mother_name, mother_number, profile_photo
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
         [
           id,
           usn,
@@ -244,6 +247,33 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
       );
     }
 
+    /* -------------------------
+       2) HANDLE ROOM CHANGES
+    ------------------------- */
+    if (room_no) {
+      // Old room lose occupant
+      if (prevRoom && prevRoom !== room_no) {
+        await client.query(
+          `
+          UPDATE rooms
+          SET occupied = GREATEST(occupied - 1, 0)
+          WHERE room_number=$1
+        `,
+          [prevRoom]
+        );
+      }
+
+      // New room gain occupant
+      await client.query(
+        `
+        UPDATE rooms
+        SET occupied = LEAST(occupied + 1, sharing)
+        WHERE room_number=$1
+      `,
+        [room_no]
+      );
+    }
+
     await client.query("COMMIT");
     res.json({ message: "Student details saved successfully ✅" });
   } catch (err) {
@@ -256,23 +286,23 @@ router.put("/:id/details", authMiddleware, isWarden, async (req, res) => {
 });
 
 /* =====================================================
-   ❌ Delete student → Move to student_history
+   ❌ Delete student → Move to student_history + free room
 ===================================================== */
 router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(Number(id))) {
+    if (!id || isNaN(Number(id)))
       return res.status(400).json({ message: "Invalid student ID" });
-    }
 
     await client.query("BEGIN");
 
-    // Fetch entire student record
+    // Fetch student fully
     const result = await client.query(
       `SELECT 
-         u.id AS user_id, u.name, u.email, u.role, u.college_domain, u.created_at,
+         u.id AS user_id, u.name, u.email, u.role, 
+         u.college_domain, u.created_at,
          sp.usn, sp.dept_branch, sp.year, sp.batch,
          sp.room_no, sp.hostel_id, sp.phone_number,
          sp.gender, sp.dob, sp.address,
@@ -280,7 +310,7 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
          sp.mother_name, sp.mother_number,
          sp.profile_photo
        FROM users u
-       LEFT JOIN student_profiles sp ON sp.user_id = u.id
+       LEFT JOIN student_profiles sp ON sp.user_id=u.id
        WHERE u.id=$1 AND u.role='student'`,
       [id]
     );
@@ -292,7 +322,23 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
 
     const s = result.rows[0];
 
-    // Insert into student_history
+    /* -------------------------
+       FREE ROOM BEFORE DELETION
+    ------------------------- */
+    if (s.room_no) {
+      await client.query(
+        `
+        UPDATE rooms
+        SET occupied = GREATEST(occupied - 1, 0)
+        WHERE room_number=$1
+      `,
+        [s.room_no]
+      );
+    }
+
+    /* -------------------------
+       MOVE TO HISTORY TABLE
+    ------------------------- */
     await client.query(
       `INSERT INTO student_history (
         user_id, name, email, college_domain, role,
@@ -341,11 +387,17 @@ router.delete("/:id", authMiddleware, isWarden, async (req, res) => {
       ]
     );
 
+    /* -------------------------
+       DELETE FROM LIVE TABLES
+    ------------------------- */
     await client.query("DELETE FROM student_profiles WHERE user_id=$1", [id]);
     await client.query("DELETE FROM users WHERE id=$1", [id]);
 
     await client.query("COMMIT");
-    res.json({ message: "Student moved to student_history ✅" });
+
+    res.json({
+      message: "Student moved to history and deleted successfully ✅",
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("❌ Error deleting student:", err);

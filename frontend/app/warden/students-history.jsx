@@ -206,15 +206,24 @@ export default function StudentsHistory() {
                 </View>
 
                 {/* PARENTS */}
-                <View style={[styles.sectionCard, styles.shadowCard]}>
-                  <Text style={styles.sectionHeader}>👨‍👩‍👧 Parents Info</Text>
-                  <Text style={styles.modalMeta}>
-                    Father: {selectedStudent.father_name || "—"} (
-                    {selectedStudent.father_number || "—"})
+                {/* PARENTS */}
+                <View style={styles.parentContainer}>
+                  <Text style={styles.parentTitle}>👨 Father's Details</Text>
+                  <Text style={styles.parentInfo}>
+                    Name: {selectedStudent.father_name || "N/A"}
                   </Text>
-                  <Text style={[styles.modalMeta, { marginTop: 6 }]}>
-                    Mother: {selectedStudent.mother_name || "—"} (
-                    {selectedStudent.mother_number || "—"})
+                  <Text style={styles.parentInfo}>
+                    Phone: {selectedStudent.father_number || "N/A"}
+                  </Text>
+
+                  <Text style={[styles.parentTitle, { marginTop: 10 }]}>
+                    👩 Mother's Details
+                  </Text>
+                  <Text style={styles.parentInfo}>
+                    Name: {selectedStudent.mother_name || "N/A"}
+                  </Text>
+                  <Text style={styles.parentInfo}>
+                    Phone: {selectedStudent.mother_number || "N/A"}
                   </Text>
                 </View>
 
