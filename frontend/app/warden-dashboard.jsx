@@ -18,7 +18,7 @@ import {
   CalendarCheck2,
   LogOut,
   UserRound,
-} from "lucide-react"; // ✅ added icon for Student Profile
+} from "lucide-react";
 
 export default function WardenDashboard() {
   const router = useRouter();
@@ -26,18 +26,16 @@ export default function WardenDashboard() {
   // 🔒 Logout handler
   const handleLogout = async () => {
     try {
-      // Remove token from both storages
       await AsyncStorage.removeItem("token");
       if (typeof window !== "undefined") localStorage.removeItem("token");
 
-      // Confirm logout
       if (Platform.OS === "web") {
         const confirmLogout = window.confirm(
           "Are you sure you want to logout?"
         );
         if (confirmLogout) {
           console.log("✅ Logged out successfully");
-          router.replace("/login");
+          router.replace("/");
         }
       } else {
         Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -47,7 +45,7 @@ export default function WardenDashboard() {
             style: "destructive",
             onPress: () => {
               console.log("✅ Logged out successfully");
-              router.replace("/login");
+              router.replace("/");
             },
           },
         ]);
@@ -63,13 +61,10 @@ export default function WardenDashboard() {
       style={styles.container}
       contentContainerStyle={{ padding: 20 }}
     >
-      {/* Header */}
       <Text style={styles.header}>🏫 Warden Dashboard</Text>
       <Text style={styles.subHeader}>Manage hostel operations efficiently</Text>
 
-      {/* Functional Cards */}
       <View style={styles.grid}>
-        {/* 👨‍🎓 Student Management */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/student-management")}
@@ -79,7 +74,7 @@ export default function WardenDashboard() {
           <Text style={styles.cardDesc}>Register, view or remove students</Text>
         </TouchableOpacity>
 
-        {/* 🧍‍♂️ Student Profile */}
+        {/* FIXED: use plural route to match folder */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/student-profile")}
@@ -91,7 +86,6 @@ export default function WardenDashboard() {
           </Text>
         </TouchableOpacity>
 
-        {/* 🏢 Room Management */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/rooms")}
@@ -101,7 +95,6 @@ export default function WardenDashboard() {
           <Text style={styles.cardDesc}>Add, edit or delete rooms</Text>
         </TouchableOpacity>
 
-        {/* 📄 Complaints */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/complaints")}
@@ -111,17 +104,15 @@ export default function WardenDashboard() {
           <Text style={styles.cardDesc}>Review & update complaint status</Text>
         </TouchableOpacity>
 
-        {/* 🕓 Past Students */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => router.push("/warden/past-students")}
+          onPress={() => router.push("/warden/students-history")}
         >
           <History size={36} color="#f59e0b" />
-          <Text style={styles.cardTitle}>Past Students</Text>
+          <Text style={styles.cardTitle}>Students History</Text>
           <Text style={styles.cardDesc}>View student history</Text>
         </TouchableOpacity>
 
-        {/* 📅 Attendance */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/attendance")}
@@ -132,11 +123,8 @@ export default function WardenDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* 🚪 Logout Button */}
-      <TouchableOpacity
-        style={styles.logoutBtn}
-        onPress={() => router.push("/")}
-      >
+      {/* FIXED: use handleLogout so token is removed */}
+      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Logout</Text>
       </TouchableOpacity>
     </ScrollView>
