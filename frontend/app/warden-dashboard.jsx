@@ -35,7 +35,7 @@ export default function WardenDashboard() {
         );
         if (confirmLogout) {
           console.log("✅ Logged out successfully");
-          router.replace("/login");
+          router.replace("/");
         }
       } else {
         Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -45,7 +45,7 @@ export default function WardenDashboard() {
             style: "destructive",
             onPress: () => {
               console.log("✅ Logged out successfully");
-              router.replace("/login");
+              router.replace("/");
             },
           },
         ]);
