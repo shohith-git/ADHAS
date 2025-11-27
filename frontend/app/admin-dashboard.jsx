@@ -51,6 +51,15 @@ export default function AdminDashboard() {
           <Text style={styles.icon}>📅</Text>
           <Text style={styles.cardText}>Attendance Logs</Text>
         </TouchableOpacity>
+
+        {/* Student History */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push("/admin/student-history")}
+        >
+          <Text style={styles.icon}>📚</Text>
+          <Text style={styles.cardText}>Student History</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Logout Button */}
