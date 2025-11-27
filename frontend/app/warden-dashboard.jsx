@@ -24,14 +24,14 @@ export default function WardenDashboard() {
         const confirmLogout = window.confirm(
           "Are you sure you want to logout?"
         );
-        if (confirmLogout) router.replace("/login");
+        if (confirmLogout) router.replace("/");
       } else {
         Alert.alert("Logout", "Are you sure you want to logout?", [
           { text: "Cancel", style: "cancel" },
           {
             text: "Logout",
             style: "destructive",
-            onPress: () => router.replace("/login"),
+            onPress: () => router.replace("/"),
           },
         ]);
       }
