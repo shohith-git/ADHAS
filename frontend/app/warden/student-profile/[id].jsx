@@ -26,6 +26,11 @@ export default function StudentDetails() {
   const [loading, setLoading] = useState(true);
 
   const BACKEND = "http://10.49.102.21:5000";
+<<<<<<< HEAD
+=======
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+>>>>>>> origin/ai-feature
 
   /* ------------------ TOAST SYSTEM ------------------ */
   const [toastMessage, setToastMessage] = useState("");
