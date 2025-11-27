@@ -17,7 +17,7 @@ router.post("/analyze", async (req, res) => {
     const aiRes = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "llama3-8b-8192",
+        model: "llama-3.3-70b-versatile", // ⭐ OFFICIAL FULL NAME
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
       },
@@ -25,7 +25,6 @@ router.post("/analyze", async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-          "x-api-key": process.env.GROQ_API_KEY, // ⭐ REQUIRED
         },
       }
     );
@@ -39,7 +38,5 @@ router.post("/analyze", async (req, res) => {
     });
   }
 });
-
-console.log("GROQ AI ROUTE LOADED ✔");
 
 module.exports = router;

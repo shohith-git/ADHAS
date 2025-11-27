@@ -45,5 +45,5 @@ app.get("/", (req, res) => {
 
 // 🚀 Start Server
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://10.69.232.21:${PORT}`);
+  console.log(`Server running on http://10.49.102.21:${PORT}`);
 });

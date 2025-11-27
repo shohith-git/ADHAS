@@ -22,6 +22,7 @@ export default function StudentDashboard() {
       try {
         let storedEmail = "";
         let storedName = "";
+
         if (Platform.OS === "web") {
           storedEmail = localStorage.getItem("email") || "";
           storedName = localStorage.getItem("name") || "";
@@ -29,12 +30,14 @@ export default function StudentDashboard() {
           storedEmail = (await AsyncStorage.getItem("email")) || "";
           storedName = (await AsyncStorage.getItem("name")) || "";
         }
+
         setStudentEmail(storedEmail);
         setStudentName(storedName || storedEmail || "Student");
       } catch (err) {
         console.error("Error loading student info:", err);
       }
     };
+
     loadStudentInfo();
   }, []);
 
@@ -55,6 +58,7 @@ export default function StudentDashboard() {
           "role",
         ]);
       }
+
       Alert.alert("Logged Out", "You have been logged out.");
       router.replace("/");
     } catch (err) {
@@ -66,11 +70,13 @@ export default function StudentDashboard() {
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#0b5cff" barStyle="light-content" />
+
       <Text style={styles.title}>🎓 Student Dashboard</Text>
       <Text style={styles.welcome}>Welcome back, {studentName}!</Text>
       <Text style={styles.email}>{studentEmail}</Text>
 
       <View style={styles.cardContainer}>
+        {/* Profile */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/student/profile")}
@@ -79,6 +85,7 @@ export default function StudentDashboard() {
           <Text style={styles.cardText}>Profile</Text>
         </TouchableOpacity>
 
+        {/* Complaints */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/student/complaints")}
@@ -87,12 +94,22 @@ export default function StudentDashboard() {
           <Text style={styles.cardText}>Complaint Portal</Text>
         </TouchableOpacity>
 
+        {/* Attendance */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/student/attendance")}
         >
           <Text style={styles.icon}>📅</Text>
           <Text style={styles.cardText}>View Attendance</Text>
+        </TouchableOpacity>
+
+        {/* AI Assistant - MATCHING CARD */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => router.push("/student/ai")}
+        >
+          <Text style={styles.icon}>🤖</Text>
+          <Text style={styles.cardText}>AI Assistant</Text>
         </TouchableOpacity>
       </View>
 
@@ -119,7 +136,12 @@ const styles = StyleSheet.create({
   },
   welcome: { fontSize: 18, color: "#1e293b", marginBottom: 4 },
   email: { fontSize: 14, color: "#64748b", marginBottom: 25 },
-  cardContainer: { width: "100%", alignItems: "center" },
+
+  // Card grid
+  cardContainer: {
+    width: "100%",
+    alignItems: "center",
+  },
   card: {
     backgroundColor: "#ffffff",
     width: "90%",
@@ -132,8 +154,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
   },
+
   icon: { fontSize: 30, marginBottom: 8 },
   cardText: { fontSize: 16, fontWeight: "600", color: "#0f172a" },
+
+  // Logout
   logoutBtn: {
     backgroundColor: "#ff4d4f",
     width: "80%",

@@ -15,7 +15,7 @@ export default function AdminAttendance() {
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://10.49.102.21:5000";
 
   // 🟢 Fetch attendance logs
   const fetchAttendance = async () => {
