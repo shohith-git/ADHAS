@@ -13,15 +13,15 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
-export default function AIAssistant() {
+export default function StudentAI() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [reply, setReply] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const askAI = async (customPrompt = null) => {
-    const askText = customPrompt || query.trim();
-    if (!askText) return;
+  const askAI = async (custom = null) => {
+    const finalPrompt = custom || query.trim();
+    if (!finalPrompt) return;
 
     setLoading(true);
     setReply("");
@@ -29,42 +29,45 @@ export default function AIAssistant() {
     try {
       const token = await AsyncStorage.getItem("token");
 
-      const res = await axios.post(
+      const response = await axios.post(
         "http://10.49.102.21:5000/api/ai/analyze",
-        { prompt: askText },
+        { prompt: finalPrompt },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      setReply(res.data.reply);
+      setReply(response.data.reply);
     } catch (err) {
-      setReply("AI failed to respond. Please try again.");
+      setReply("AI could not respond. Please try again.");
     }
 
     setLoading(false);
   };
 
-  const smartPrompts = [
-    "Summarize today's attendance",
-    "List all active hostel complaints",
-    "Suggest improvements for room allocation",
-    "Find students with repeated issues",
-    "Give today's warden summary",
+  const quickPrompts = [
+    "How to apply for leave?",
+    "What are the mess timings?",
+    "How to file a complaint?",
+    "What is Day Pass vs Home Pass?",
+    "How to check my attendance?",
+    "How to check my room details?",
+    "What to do for electricity or water problems?",
   ];
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{ flex: 1, backgroundColor: "#f1f5f9" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
           paddingBottom: 120,
           alignItems: "center",
         }}
       >
-        {/* Page Container */}
+        {/* Container */}
         <View
           style={{
             width: "100%",
@@ -73,17 +76,17 @@ export default function AIAssistant() {
             paddingTop: 25,
           }}
         >
-          {/* BACK BUTTON */}
+          {/* Back Button */}
           <TouchableOpacity
-            onPress={() => router.push("/warden-dashboard")}
+            onPress={() => router.push("/student-dashboard")}
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: "#2563eb",
+              backgroundColor: "#2563eb", // SAME BRIGHT BLUE
               paddingHorizontal: 14,
               paddingVertical: 8,
               borderRadius: 8,
-              alignSelf: "flex-start",
+              alignSelf: "flex-start", // keeps it small
               shadowColor: "#000",
               shadowOpacity: 0.15,
               shadowOffset: { width: 0, height: 2 },
@@ -107,31 +110,30 @@ export default function AIAssistant() {
               color: "#0f172a",
             }}
           >
-            AI Assistant
+            Student AI Assistant
           </Text>
-
           <Text
             style={{
-              marginTop: 8,
-              marginBottom: 25,
               fontSize: 16,
+              marginTop: 8,
               color: "#475569",
+              marginBottom: 25,
             }}
           >
-            Ask anything about hostel operations, attendance, rooms or
-            complaints.
+            Ask anything about leave, mess, attendance, complaints or hostel
+            rules.
           </Text>
 
-          {/* SMART PROMPTS */}
+          {/* Quick Prompts */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={{ marginBottom: 20 }}
           >
-            {smartPrompts.map((text, index) => (
+            {quickPrompts.map((p, index) => (
               <TouchableOpacity
                 key={index}
-                onPress={() => askAI(text)}
+                onPress={() => askAI(p)}
                 style={{
                   backgroundColor: "#eef2ff",
                   paddingVertical: 10,
@@ -145,12 +147,12 @@ export default function AIAssistant() {
                   shadowOffset: { width: 0, height: 1 },
                 }}
               >
-                <Text style={{ color: "#4338ca", fontSize: 14 }}>{text}</Text>
+                <Text style={{ fontSize: 14, color: "#4338ca" }}>{p}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* MAIN CARD */}
+          {/* Main Card */}
           <View
             style={{
               backgroundColor: "white",
@@ -166,15 +168,15 @@ export default function AIAssistant() {
           >
             {/* Input */}
             <TextInput
+              placeholder="Type your question..."
               value={query}
               onChangeText={setQuery}
-              placeholder="Type your question..."
               style={{
+                backgroundColor: "#f8fafc",
                 borderWidth: 1,
                 borderColor: "#cbd5e1",
-                borderRadius: 12,
                 padding: 14,
-                backgroundColor: "#f8fafc",
+                borderRadius: 12,
                 fontSize: 16,
                 marginBottom: 15,
               }}
@@ -185,8 +187,9 @@ export default function AIAssistant() {
               onPress={() => askAI()}
               style={{
                 backgroundColor: "#2563eb",
-                padding: 15,
+                paddingVertical: 15,
                 borderRadius: 12,
+                marginBottom: 10,
                 shadowColor: "#1d4ed8",
                 shadowOpacity: 0.3,
                 shadowOffset: { width: 0, height: 4 },
@@ -194,9 +197,9 @@ export default function AIAssistant() {
             >
               <Text
                 style={{
-                  color: "white",
                   textAlign: "center",
                   fontSize: 18,
+                  color: "white",
                   fontWeight: "600",
                 }}
               >
@@ -204,25 +207,19 @@ export default function AIAssistant() {
               </Text>
             </TouchableOpacity>
 
-            {/* Loader */}
-            {loading && (
-              <ActivityIndicator
-                size="large"
-                color="#2563eb"
-                style={{ marginTop: 20 }}
-              />
-            )}
+            {/* Loading */}
+            {loading && <ActivityIndicator size="large" color="#2563eb" />}
 
-            {/* AI RESPONSE */}
+            {/* Response */}
             {!loading && reply !== "" && (
               <View
                 style={{
+                  marginTop: 20,
                   backgroundColor: "#f1f5f9",
                   padding: 16,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: "#e2e8f0",
-                  marginTop: 20,
                 }}
               >
                 <Text

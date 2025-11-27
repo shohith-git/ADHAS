@@ -21,7 +21,7 @@ export default function StudentProfile() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const BACKEND = "http://10.69.232.21:5000";
+  const BACKEND = "http://10.49.102.21:5000";
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const rawId =
