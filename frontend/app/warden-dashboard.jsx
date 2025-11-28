@@ -24,20 +24,14 @@ export default function WardenDashboard() {
         const confirmLogout = window.confirm(
           "Are you sure you want to logout?"
         );
-        if (confirmLogout) {
-          console.log("✅ Logged out successfully");
-          router.replace("/");
-        }
+        if (confirmLogout) router.replace("/");
       } else {
         Alert.alert("Logout", "Are you sure you want to logout?", [
           { text: "Cancel", style: "cancel" },
           {
             text: "Logout",
             style: "destructive",
-            onPress: () => {
-              console.log("✅ Logged out successfully");
-              router.replace("/");
-            },
+            onPress: () => router.replace("/"),
           },
         ]);
       }
@@ -52,10 +46,13 @@ export default function WardenDashboard() {
       style={styles.container}
       contentContainerStyle={{ padding: 20 }}
     >
+      {/* Header */}
       <Text style={styles.header}>🏫 Warden Dashboard</Text>
       <Text style={styles.subHeader}>Manage hostel operations efficiently</Text>
 
+      {/* Functional Cards */}
       <View style={styles.grid}>
+        {/* 👨‍🎓 Student Management */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/student-management")}
@@ -65,6 +62,7 @@ export default function WardenDashboard() {
           <Text style={styles.cardDesc}>Register, view or remove students</Text>
         </TouchableOpacity>
 
+        {/* 👤 Student Profile */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/student-profile")}
@@ -76,6 +74,7 @@ export default function WardenDashboard() {
           </Text>
         </TouchableOpacity>
 
+        {/* 🏢 Room Management */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/rooms")}
@@ -85,6 +84,7 @@ export default function WardenDashboard() {
           <Text style={styles.cardDesc}>Add, edit or delete rooms</Text>
         </TouchableOpacity>
 
+        {/* 📄 Complaints */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/complaints")}
@@ -106,16 +106,17 @@ export default function WardenDashboard() {
           </Text>
         </TouchableOpacity>
 
-        {/* 🕓 Students History */}
+        {/* 🕓 Past Students */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/students-history")}
         >
-          <History size={36} color="#f59e0b" />
+          <Text style={styles.icon}>⏳</Text>
           <Text style={styles.cardTitle}>Students History</Text>
           <Text style={styles.cardDesc}>View student history</Text>
         </TouchableOpacity>
 
+        {/* 📅 Attendance */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/attendance")}
@@ -126,7 +127,7 @@ export default function WardenDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Logout */}
+      {/* 🚪 Logout Button */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Logout</Text>
       </TouchableOpacity>

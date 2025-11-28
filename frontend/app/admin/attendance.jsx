@@ -13,6 +13,7 @@ import axios from "axios";
 import { Calendar } from "react-native-calendars";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function AttendanceDashboard() {
   const router = useRouter();
@@ -24,7 +25,6 @@ export default function AttendanceDashboard() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Floating toast
   const [toastMsg, setToastMsg] = useState("");
   const toastAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -34,7 +34,7 @@ export default function AttendanceDashboard() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  /* ---------------------- TOAST ---------------------- */
+  /* ---------------- TOAST ---------------- */
   const showToast = (msg = "", ms = 1500) => {
     if (!msg) return;
     setToastMsg(msg);
@@ -54,7 +54,7 @@ export default function AttendanceDashboard() {
     }, ms);
   };
 
-  /* ---------------------- LOAD SUMMARY ---------------------- */
+  /* ---------------- LOAD SUMMARY ---------------- */
   const loadSummary = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/attendance/summary`, {
@@ -66,7 +66,7 @@ export default function AttendanceDashboard() {
     }
   };
 
-  /* ---------------------- LOAD DATE ---------------------- */
+  /* ---------------- LOAD FOR A DATE ---------------- */
   const loadDate = async (date) => {
     setLoading(true);
     try {
@@ -83,14 +83,12 @@ export default function AttendanceDashboard() {
     setLoading(false);
   };
 
-  /* ---------------------- SELECT DATE ---------------------- */
   const onDayPress = (day) => {
     const date = day.dateString;
 
     setSelectedDate(date);
     loadDate(date);
 
-    // Toast A: Showing attendance for DD MMM YYYY
     const readable = new Date(date).toLocaleDateString("en-IN", {
       day: "numeric",
       month: "short",
@@ -100,14 +98,12 @@ export default function AttendanceDashboard() {
     showToast(`Showing attendance for ${readable}`);
   };
 
-  /* ---------------------- INITIAL ---------------------- */
   useEffect(() => {
     setSelectedDate(today);
     loadDate(today);
     loadSummary();
   }, []);
 
-  /* ---------------------- FOCUS REFRESH ---------------------- */
   useFocusEffect(
     useCallback(() => {
       if (selectedDate) loadDate(selectedDate);
@@ -115,8 +111,7 @@ export default function AttendanceDashboard() {
     }, [selectedDate])
   );
 
-  /* ---------------------- SEARCH FILTER ---------------------- */
-  const q = search.trim().toLowerCase();
+  /* ---------------- SEARCH FILTER ---------------- */
   const filter = (list) => {
     const q = search.trim().toLowerCase();
     if (!q) return list;
@@ -136,7 +131,7 @@ export default function AttendanceDashboard() {
     });
   };
 
-  /* ---------------------- MARKED DATES ---------------------- */
+  /* ---------------- MARK CALENDAR ---------------- */
   const marked = {};
 
   summary.forEach((r) => {
@@ -146,22 +141,20 @@ export default function AttendanceDashboard() {
     };
   });
 
-  if (!marked[today]) {
-    marked[today] = { marked: true, dotColor: "#10b981" };
-  }
+  marked[today] = marked[today] || { marked: true, dotColor: "#10b981" };
 
   if (selectedDate) {
     marked[selectedDate] = {
       ...(marked[selectedDate] || {}),
       selected: true,
-      selectedColor: "#0b5cff",
+      selectedColor: "#4f46e5",
     };
   }
 
-  /* ---------------------- UI ---------------------- */
+  /* ---------------- UI ---------------- */
   return (
-    <View style={{ flex: 1, backgroundColor: "#f8fafc" }}>
-      {/* Floating Toast */}
+    <View style={styles.page}>
+      {/* Toast */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -182,108 +175,104 @@ export default function AttendanceDashboard() {
         <Text style={styles.toastText}>{toastMsg}</Text>
       </Animated.View>
 
-      {/* SCROLLABLE PAGE */}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 140 }}
       >
-        {/* HEADER */}
+        {/* Header */}
         <View style={styles.headerRow}>
-          <Text style={styles.header}>📅 Attendance Dashboard</Text>
+          <Text style={styles.header}>📅 Attendance Overview</Text>
 
-          <View style={{ flexDirection: "row" }}>
-            {/* Refresh */}
-            <TouchableOpacity
-              style={styles.smallBtn}
-              onPress={() => {
-                loadDate(selectedDate);
-                loadSummary();
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={() => {
+              loadDate(selectedDate);
+              loadSummary();
 
-                const now = new Date();
-                const timeString = now.toLocaleTimeString("en-IN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+              const now = new Date();
+              const timeString = now.toLocaleTimeString("en-IN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
 
-                showToast(`Refreshed at ${timeString}`);
-              }}
-            >
-              <Text style={styles.smallBtnText}>⟳ Refresh</Text>
-            </TouchableOpacity>
-          </View>
+              showToast(`Refreshed at ${timeString}`);
+            }}
+          >
+            <Ionicons name="refresh-outline" size={18} color="#4f46e5" />
+            <Text style={styles.refreshText}>Refresh</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* CALENDAR */}
-        <View style={styles.card}>
+        {/* Calendar */}
+        <View style={styles.calendarCard}>
           <Calendar
             onDayPress={onDayPress}
             markedDates={marked}
             theme={{
               todayTextColor: "#10b981",
-              selectedDayBackgroundColor: "#0b5cff",
-              arrowColor: "#0b5cff",
+              selectedDayBackgroundColor: "#4f46e5",
+              arrowColor: "#4f46e5",
             }}
-            style={styles.calendar}
+            style={{ borderRadius: 10 }}
           />
         </View>
 
-        {/* SUMMARY */}
+        {/* Summary Cards */}
         <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.sumLabel}>Present</Text>
-            <Text style={styles.sumNum}>
-              {loading ? "—" : presentList.length}
-            </Text>
+          <View style={[styles.sumCard, { backgroundColor: "#e0fce4" }]}>
+            <Ionicons name="checkmark-circle" size={22} color="#16a34a" />
+            <View>
+              <Text style={styles.sumLabel}>Present</Text>
+              <Text style={styles.sumNum}>{presentList.length}</Text>
+            </View>
           </View>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.sumLabel}>Absent</Text>
-            <Text style={styles.sumNum}>
-              {loading ? "—" : absentList.length}
-            </Text>
+          <View style={[styles.sumCard, { backgroundColor: "#ffe2e2" }]}>
+            <Ionicons name="close-circle" size={22} color="#dc2626" />
+            <View>
+              <Text style={styles.sumLabel}>Absent</Text>
+              <Text style={styles.sumNum}>{absentList.length}</Text>
+            </View>
           </View>
         </View>
 
-        {/* SEARCH */}
+        {/* Search */}
         <TextInput
-          placeholder="Search students by name, USN, room, hostel id."
+          placeholder="Search by name, USN, room, hostel ID..."
           style={styles.search}
           value={search}
           onChangeText={setSearch}
         />
 
-        {/* DATE HEADER */}
+        {/* Date Display */}
         <Text style={styles.dateTitle}>
-          Attendance for{" "}
-          <Text style={{ fontWeight: "800" }}>
-            {new Date(selectedDate).toDateString()}
-          </Text>
+          {new Date(selectedDate).toDateString()}
         </Text>
 
-        {/* PRESENT */}
+        {/* PRESENT LIST */}
         <Text style={styles.sectionTitle}>🟢 Present Students</Text>
         {loading ? (
-          <ActivityIndicator color="#2563eb" />
+          <ActivityIndicator color="#4f46e5" />
         ) : filter(presentList).length === 0 ? (
-          <Text style={styles.empty}>No present students</Text>
+          <Text style={styles.emptyText}>No present students</Text>
         ) : (
           filter(presentList).map((p) => (
             <View key={p.student_id} style={styles.studentCard}>
               <Text style={styles.studentName}>{p.student_name}</Text>
               <Text style={styles.studentMeta}>
-                Hostel id: {p.hostel_id} • Room: {p.room_no} • USN: {p.usn}
+                Hostel {p.hostel_id} • Room {p.room_no} • {p.usn}
               </Text>
               <Text style={[styles.tag, styles.tagPresent]}>Present</Text>
             </View>
           ))
         )}
 
-        {/* ABSENT */}
+        {/* ABSENT LIST */}
         <Text style={styles.sectionTitle}>🔴 Absent Students</Text>
         {loading ? (
-          <ActivityIndicator color="#2563eb" />
+          <ActivityIndicator color="#4f46e5" />
         ) : filter(absentList).length === 0 ? (
-          <Text style={styles.empty}>No absent students</Text>
+          <Text style={styles.emptyText}>No absent students</Text>
         ) : (
           filter(absentList).map((a) => (
             <View key={a.student_id} style={styles.studentCard}>
@@ -296,140 +285,154 @@ export default function AttendanceDashboard() {
           ))
         )}
 
-        {/* BACK BUTTON AT BOTTOM */}
+        {/* Back Button */}
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.push("/admin-dashboard")}
         >
-          <Text style={styles.backText}>← Back to Attendance</Text>
+          <Ionicons name="arrow-back" size={18} color="#fff" />
+          <Text style={styles.backText}>Back to Dashboard</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
-/* ---------------------- STYLES ---------------------- */
+/* ---------------- STYLES ---------------- */
+
 const styles = StyleSheet.create({
+  page: { flex: 1, backgroundColor: "#eef2ff" },
+
   toast: {
     position: "absolute",
     top: 12,
     left: "50%",
-    width: 330,
-    marginLeft: -165,
-    backgroundColor: "#fff",
+    marginLeft: -150,
+    width: 300,
     padding: 10,
+    backgroundColor: "#ffffff",
     borderRadius: 10,
+    elevation: 4,
+    zIndex: 9999,
     shadowColor: "#000",
     shadowOpacity: 0.12,
     shadowRadius: 8,
-    elevation: 6,
-    zIndex: 9999,
-    alignItems: "center",
   },
-  toastText: { color: "#0f172a", fontWeight: "700" },
+  toastText: { fontWeight: "700", textAlign: "center", color: "#1e293b" },
 
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 14,
   },
-  header: { fontSize: 22, fontWeight: "800", color: "#0b5cff" },
+  header: { fontSize: 22, fontWeight: "800", color: "#4f46e5" },
 
-  smallBtn: {
-    backgroundColor: "#e9efff",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  refreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e0e7ff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
-  smallBtnText: { color: "#0b5cff", fontWeight: "700" },
 
-  card: {
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 4,
+  refreshText: {
+    color: "#4f46e5",
+    fontWeight: "700",
+    marginLeft: 4,
   },
 
-  calendar: { borderRadius: 8 },
-
-  summaryRow: { flexDirection: "row", justifyContent: "space-between" },
-
-  summaryCard: {
+  calendarCard: {
     backgroundColor: "#fff",
-    width: "48%",
-    padding: 14,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 14,
+    elevation: 3,
   },
 
-  sumLabel: { fontSize: 13, color: "#64748b" },
-  sumNum: { fontSize: 22, fontWeight: "800", color: "#0f172a" },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+
+  sumCard: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    elevation: 3,
+  },
+
+  sumLabel: { color: "#4b5563", fontSize: 13 },
+  sumNum: { fontSize: 20, fontWeight: "800", color: "#111827" },
 
   search: {
     backgroundColor: "#fff",
-    padding: 12,
     borderRadius: 10,
+    padding: 12,
     borderWidth: 1,
-    borderColor: "#e6eefb",
-    marginBottom: 14,
+    borderColor: "#d4d4d8",
+    marginBottom: 16,
+    fontSize: 14,
   },
 
   dateTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#0f172a",
+    fontWeight: "700",
+    color: "#1e293b",
     marginBottom: 10,
   },
 
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-    color: "#0b5cff",
+    color: "#4f46e5",
+    marginTop: 12,
     marginBottom: 10,
-    marginTop: 10,
   },
 
   studentCard: {
     backgroundColor: "#fff",
     padding: 14,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e6eefb",
+    elevation: 2,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
 
-  studentName: { fontSize: 15, fontWeight: "700" },
-  studentMeta: { marginTop: 4, color: "#64748b", fontSize: 13 },
+  studentName: { fontSize: 15, fontWeight: "700", color: "#111827" },
+
+  studentMeta: { marginTop: 4, fontSize: 12.5, color: "#64748b" },
 
   tag: {
     marginTop: 8,
     paddingVertical: 5,
     paddingHorizontal: 8,
-    borderRadius: 8,
-    color: "#fff",
+    borderRadius: 6,
     fontWeight: "700",
     fontSize: 12,
     alignSelf: "flex-start",
+    color: "#fff",
   },
-  tagPresent: { backgroundColor: "#16a34a" },
-  tagAbsent: { backgroundColor: "#ef4444" },
 
-  empty: { color: "#94a3b8", fontStyle: "italic", marginBottom: 8 },
+  tagPresent: { backgroundColor: "#16a34a" },
+  tagAbsent: { backgroundColor: "#dc2626" },
+
+  emptyText: { color: "#94a3b8", fontStyle: "italic", marginBottom: 10 },
 
   backBtn: {
     marginTop: 25,
-    backgroundColor: "#1e3a8a",
+    backgroundColor: "#4f46e5",
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: "center",
   },
-  backText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  backText: { color: "#fff", fontSize: 15, fontWeight: "700", marginLeft: 6 },
 });

@@ -6,151 +6,188 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  TextInput,
   Alert,
 } from "react-native";
 import axios from "axios";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+
+const BACKEND = "http://10.49.102.21:5000";
 
 export default function AdminUsers() {
   const router = useRouter();
-  const [activeUsers, setActiveUsers] = useState([]);
-  const [deletedStudents, setDeletedStudents] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [showDeleted, setShowDeleted] = useState(false);
 
-  const BACKEND = "http://10.49.102.21:5000";
+  const [loading, setLoading] = useState(true);
 
-  // Fetch active users
-  const fetchActiveUsers = async () => {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [wardens, setWardens] = useState([]);
+  const [students, setStudents] = useState([]);
+
+  const loadData = async () => {
     try {
-      const res = await axios.get(`${BACKEND}/api/admin/users`);
-      setActiveUsers(res.data);
-    } catch (err) {
-      console.error("❌ Error fetching active users:", err.message);
-      Alert.alert("Error", "Failed to load active users");
-    }
-  };
+      const usersRes = await axios.get(`${BACKEND}/api/admin/users`);
+      const data = usersRes.data || [];
 
-  // Fetch deleted students
-  const fetchDeletedStudents = async () => {
-    try {
-      const res = await axios.get(`${BACKEND}/api/admin/deleted-students`);
-      setDeletedStudents(res.data);
+      const ward = data.filter((u) => u.role === "warden");
+      const studs = data.filter((u) => u.role === "student");
+
+      setWardens(ward);
+      setStudents(studs);
     } catch (err) {
-      console.error("❌ Error fetching deleted students:", err.message);
+      Alert.alert("Error", "Failed to load users");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        await Promise.all([fetchActiveUsers(), fetchDeletedStudents()]);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
   }, []);
 
-  const users = showDeleted ? deletedStudents : activeUsers;
+  const createWarden = async () => {
+    if (!name || !email || !password) {
+      Alert.alert("Missing Fields", "All fields are required.");
+      return;
+    }
 
-  // Split by role for active users
-  const wardens = !showDeleted ? users.filter((u) => u.role === "warden") : [];
-  const students = showDeleted
-    ? users
-    : users.filter((u) => u.role === "student");
+    try {
+      await axios.post(`${BACKEND}/api/admin/register-warden`, {
+        name,
+        email,
+        password,
+      });
+
+      Alert.alert("Success", "Warden Registered");
+      setName("");
+      setEmail("");
+      setPassword("");
+      loadData();
+    } catch (err) {
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Failed to register warden"
+      );
+    }
+  };
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.header}>👥 Manage Wardens & Students</Text>
-
-      {/* Toggle Buttons */}
-      <View style={styles.toggleContainer}>
-        <TouchableOpacity
-          style={[styles.toggleBtn, !showDeleted && styles.activeToggle]}
-          onPress={() => setShowDeleted(false)}
-        >
-          <Text
-            style={[styles.toggleText, !showDeleted && styles.activeToggleText]}
-          >
-            Active
-          </Text>
-        </TouchableOpacity>
+      {/* Header + History Tab */}
+      <View style={styles.headerRow}>
+        <Text style={styles.header}>👥 Manage Wardens & Students</Text>
 
         <TouchableOpacity
-          style={[styles.toggleBtn, showDeleted && styles.activeToggle]}
-          onPress={() => setShowDeleted(true)}
+          style={styles.tabBtn}
+          onPress={() => router.push("/admin/warden-history")}
         >
-          <Text
-            style={[styles.toggleText, showDeleted && styles.activeToggleText]}
-          >
-            Deleted
-          </Text>
+          <Ionicons name="time-outline" size={18} color="#fff" />
+          <Text style={styles.tabText}>Warden History</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Data Display */}
+      {/* CREATE NEW WARDEN */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>➕ Register New Warden</Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Full name"
+          placeholderTextColor="#94a3b8"
+          value={name}
+          onChangeText={setName}
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#94a3b8"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder="Password"
+            placeholderTextColor="#94a3b8"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          <TouchableOpacity
+            onPress={() => setShowPassword(!showPassword)}
+            style={styles.eyeBtn}
+          >
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={20}
+              color="#475569"
+            />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.registerBtn} onPress={createWarden}>
+          <Text style={styles.registerText}>Create Warden</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ACTIVE WARDENS */}
+      <Text style={styles.sectionTitle}>👨‍🏫 Active Wardens</Text>
       {loading ? (
-        <ActivityIndicator size="large" color="#0b5cff" />
-      ) : users.length === 0 ? (
-        <Text style={{ textAlign: "center", color: "#64748b" }}>
-          No {showDeleted ? "deleted" : "active"} records found.
-        </Text>
+        <ActivityIndicator size="large" color="#4f46e5" />
+      ) : wardens.length === 0 ? (
+        <Text style={styles.empty}>No wardens found.</Text>
       ) : (
-        <>
-          {/* 🟣 WARDENS SECTION */}
-          {!showDeleted && wardens.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>👨‍🏫 Wardens</Text>
-              {wardens.map((user) => (
-                <View key={user.id} style={styles.card}>
-                  <Text style={styles.name}>{user.name}</Text>
-                  <Text style={styles.email}>{user.email}</Text>
-                  <Text style={[styles.role, styles.warden]}>WARDEN</Text>
-                </View>
-              ))}
-            </>
-          )}
+        wardens.map((w) => (
+          <TouchableOpacity
+            key={w.id}
+            style={styles.userCard}
+            onPress={() => router.push(`/admin/warden-profile/${w.id}`)}
+          >
+            <View style={styles.rowBetween}>
+              <View>
+                <Text style={styles.name}>{w.name}</Text>
+                <Text style={styles.email}>{w.email}</Text>
+              </View>
 
-          {/* 🟠 STUDENTS SECTION */}
-          {!showDeleted && students.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>🎓 Students</Text>
-              {students.map((user) => (
-                <View key={user.id} style={styles.card}>
-                  <Text style={styles.name}>{user.name}</Text>
-                  <Text style={styles.email}>{user.email}</Text>
-                  <Text style={[styles.role, styles.student]}>STUDENT</Text>
-                </View>
-              ))}
-            </>
-          )}
+              <Text style={[styles.role, styles.warden]}>WARDEN</Text>
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
 
-          {/* 🔴 DELETED STUDENTS SECTION */}
-          {showDeleted && (
-            <>
-              <Text style={styles.sectionTitle}>🗑️ Deleted Students</Text>
-              {students.map((user) => (
-                <View key={user.id} style={styles.card}>
-                  <Text style={styles.name}>{user.name}</Text>
-                  <Text style={styles.email}>{user.email}</Text>
-                  <Text style={[styles.role, styles.student]}>STUDENT</Text>
-                  <Text style={styles.deletedLabel}>
-                    Left on:{" "}
-                    {user.left_at
-                      ? new Date(user.left_at).toLocaleDateString("en-IN", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "Unknown Date"}
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
-        </>
+      {/* ACTIVE STUDENTS */}
+      <Text style={styles.sectionTitle}>🎓 Active Students</Text>
+
+      {students.length === 0 ? (
+        <Text style={styles.empty}>No students found.</Text>
+      ) : (
+        students.map((s) => (
+          <TouchableOpacity
+            key={s.id}
+            style={styles.userCard}
+            onPress={() => router.push(`/admin/student-profile/${s.id}`)}
+          >
+            <Text style={styles.name}>{s.name}</Text>
+            <Text style={styles.email}>{s.email}</Text>
+
+            {/* Added USN + Room */}
+            <Text style={styles.usnRoom}>USN: {s.usn || "—"}</Text>
+            <Text style={styles.usnRoom}>
+              Room: {s.room_no || "Unallocated"}
+            </Text>
+
+            <Text style={[styles.role, styles.student]}>STUDENT</Text>
+          </TouchableOpacity>
+        ))
       )}
 
       <TouchableOpacity
@@ -163,71 +200,144 @@ export default function AdminUsers() {
   );
 }
 
+/* ---------------- UI STYLES ---------------- */
+
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f8fafc" },
+  page: { backgroundColor: "#eef2ff", flex: 1 },
+
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+
   header: {
     fontSize: 22,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: 20,
-    textAlign: "center",
+    fontWeight: "800",
+    color: "#1e293b",
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  toggleContainer: {
+
+  /* Hard TAB Button */
+  tabBtn: {
     flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 15,
+    alignItems: "center",
+    backgroundColor: "#4f46e5",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    elevation: 3,
   },
-  toggleBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    marginHorizontal: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#0b5cff",
+  tabText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#fff",
   },
-  toggleText: { color: "#0b5cff", fontWeight: "600" },
-  activeToggle: { backgroundColor: "#0b5cff" },
-  activeToggleText: { color: "#fff" },
+
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: "700",
+    marginTop: 18,
+    marginBottom: 8,
+    color: "#1e293b",
+  },
+
   card: {
     backgroundColor: "#fff",
-    borderRadius: 10,
     padding: 14,
-    marginBottom: 12,
-    boxShadow: "0 2px 3px rgba(0,0,0,0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 2,
+    marginTop: 16,
   },
-  name: { fontSize: 16, fontWeight: "700", color: "#0f172a" },
-  email: { fontSize: 13, color: "#475569" },
-  role: {
-    marginTop: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 6,
-    fontWeight: "600",
-    textAlign: "center",
-    alignSelf: "flex-start",
+
+  input: {
+    backgroundColor: "#f1f5f9",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 6,
+    fontSize: 14,
+    color: "#111827",
   },
-  student: { backgroundColor: "#dbeafe", color: "#1e3a8a" },
-  warden: { backgroundColor: "#fef3c7", color: "#92400e" },
-  admin: { backgroundColor: "#bbf7d0", color: "#166534" },
-  deletedLabel: {
-    fontSize: 12,
-    color: "#dc2626",
-    marginTop: 5,
-    fontStyle: "italic",
+
+  passwordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
   },
-  backBtn: {
-    marginTop: 20,
-    backgroundColor: "#0b5cff",
+  eyeBtn: { padding: 10, marginLeft: 6 },
+
+  registerBtn: {
+    marginTop: 12,
+    backgroundColor: "#4f46e5",
     padding: 12,
     borderRadius: 10,
     alignItems: "center",
   },
-  backBtnText: { color: "#fff", fontWeight: "700" },
+  registerText: { color: "#fff", fontWeight: "700" },
+
+  userCard: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 12,
+    elevation: 2,
+  },
+
+  name: { fontSize: 16, fontWeight: "700", color: "#1e293b" },
+  email: { fontSize: 13, color: "#475569", marginTop: 2 },
+
+  usnRoom: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#334155",
+    fontWeight: "600",
+  },
+
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  role: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    fontWeight: "700",
+    fontSize: 12.5,
+  },
+
+  warden: { backgroundColor: "#fef3c7", color: "#92400e" },
+  student: { backgroundColor: "#dbeafe", color: "#1e3a8a" },
+
+  empty: {
+    color: "#94a3b8",
+    fontStyle: "italic",
+    marginBottom: 10,
+    marginTop: 4,
+  },
+
+  backBtn: {
+    marginTop: 26,
+    backgroundColor: "#4f46e5",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  backBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
 });

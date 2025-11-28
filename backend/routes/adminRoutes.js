@@ -1,9 +1,9 @@
-// adhas/backend/routes/adminRoutes.js
-
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
+
+const { deleteWarden } = require("../controllers/wardenController");
 
 //
 // ─────────────────────────────────────────────
@@ -14,7 +14,7 @@ const bcrypt = require("bcryptjs");
 // 🟢 Get ALL active wardens + students
 router.get("/users", async (req, res) => {
   try {
-    const activeQuery = `
+    const query = `
       SELECT 
         id,
         name,
@@ -24,26 +24,26 @@ router.get("/users", async (req, res) => {
         NULL AS left_at
       FROM users
       WHERE role IN ('warden', 'student')
-      ORDER BY role, id ASC;
+      ORDER BY role, id;
     `;
 
-    const result = await pool.query(activeQuery);
-    res.status(200).json(result.rows);
+    const result = await pool.query(query);
+    return res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching active users:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
 //
 // ─────────────────────────────────────────────
-// 🧩 ADMIN: VIEW DELETED STUDENTS (student_history)
+// 🧩 ADMIN: VIEW DELETED STUDENTS
 // ─────────────────────────────────────────────
 //
 
 router.get("/deleted-students", async (req, res) => {
   try {
-    const deletedQuery = `
+    const query = `
       SELECT 
         id,
         name,
@@ -56,17 +56,17 @@ router.get("/deleted-students", async (req, res) => {
       ORDER BY left_at DESC;
     `;
 
-    const result = await pool.query(deletedQuery);
-    res.status(200).json(result.rows);
+    const result = await pool.query(query);
+    return res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching deleted students:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
 //
 // ─────────────────────────────────────────────
-// 🧩 ADMIN: REGISTER NEW WARDEN
+// 🧩 REGISTER NEW WARDEN
 // ─────────────────────────────────────────────
 //
 
@@ -77,36 +77,37 @@ router.post("/register-warden", async (req, res) => {
     if (!name || !email || !password)
       return res.status(400).json({ message: "All fields are required" });
 
-    const check = await pool.query("SELECT * FROM users WHERE email=$1", [
+    const exists = await pool.query("SELECT id FROM users WHERE email=$1", [
       email,
     ]);
 
-    if (check.rows.length > 0)
+    if (exists.rows.length > 0)
       return res.status(409).json({ message: "Warden already registered" });
 
     const hashed = await bcrypt.hash(password, 10);
 
-    const query = `
+    const result = await pool.query(
+      `
       INSERT INTO users (name, email, password, role, college_domain)
       VALUES ($1, $2, $3, 'warden', 'cit_nc.edu.in')
       RETURNING id, name, email, role;
-    `;
+      `,
+      [name, email, hashed]
+    );
 
-    const result = await pool.query(query, [name, email, hashed]);
-
-    res.status(201).json({
+    return res.status(201).json({
       message: "Warden registered successfully",
       warden: result.rows[0],
     });
   } catch (err) {
     console.error("❌ Error registering warden:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
 //
 // ─────────────────────────────────────────────
-// 🧩 ADMIN: COMPLAINTS OVERVIEW
+// 🧩 COMPLAINTS OVERVIEW
 // ─────────────────────────────────────────────
 //
 
@@ -122,23 +123,21 @@ router.get("/complaints", async (req, res) => {
         c.status,
         TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
       FROM complaints c
-      JOIN users u 
-        ON u.id = c.user_id OR u.id = c.student_id
-      WHERE u.role='student'
+      JOIN users u ON u.id = c.student_id
       ORDER BY c.created_at DESC;
     `;
 
     const result = await pool.query(query);
-    res.status(200).json(result.rows);
+    return res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching complaints:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
 //
 // ─────────────────────────────────────────────
-// 🧩 ADMIN: ATTENDANCE OVERVIEW
+// 🧩 ATTENDANCE OVERVIEW
 // ─────────────────────────────────────────────
 //
 
@@ -155,28 +154,104 @@ router.get("/attendance", async (req, res) => {
         a.location
       FROM attendance a
       JOIN users u ON u.id = a.student_id
-      WHERE u.role='student'
       ORDER BY a.date DESC, a.time DESC;
     `;
 
     const result = await pool.query(query);
-    res.status(200).json(result.rows);
+    return res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching attendance logs:", err.message);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 });
 
 //
 // ─────────────────────────────────────────────
-// 🧩 SAFETY: ADMIN CANNOT DELETE USERS
+// 🧩 UPDATE WARDEN
+// ─────────────────────────────────────────────
+//
+
+router.put("/warden/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password } = req.body;
+
+    if (!name || !email)
+      return res.status(400).json({ message: "Name and email required" });
+
+    const check = await pool.query(`SELECT role FROM users WHERE id=$1`, [id]);
+
+    if (check.rows.length === 0 || check.rows[0].role !== "warden")
+      return res
+        .status(404)
+        .json({ message: "Warden not found or invalid role" });
+
+    if (password && password.trim() !== "") {
+      const hashed = await bcrypt.hash(password, 10);
+      await pool.query(
+        `UPDATE users SET name=$1, email=$2, password=$3 WHERE id=$4`,
+        [name, email, hashed, id]
+      );
+    } else {
+      await pool.query(`UPDATE users SET name=$1, email=$2 WHERE id=$3`, [
+        name,
+        email,
+        id,
+      ]);
+    }
+
+    return res.json({ message: "Warden updated successfully" });
+  } catch (err) {
+    console.error("❌ Error updating warden:", err.message);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//
+// ─────────────────────────────────────────────
+// 🧩 DELETE WARDEN (SOFT DELETE)
+// ─────────────────────────────────────────────
+//
+
+router.delete("/warden/:id", deleteWarden);
+
+//
+// ─────────────────────────────────────────────
+// ❌ SAFETY: ADMIN CANNOT DELETE STUDENTS
 // ─────────────────────────────────────────────
 //
 
 router.delete("/users/:id", (req, res) => {
   return res.status(403).json({
-    message: "Admin cannot delete users — only wardens manage students.",
+    message: "Admin cannot delete students — only wardens manage students.",
   });
+});
+
+//
+// ─────────────────────────────────────────────
+// 🧩 VIEW DELETED WARDENS
+// ─────────────────────────────────────────────
+//
+
+router.get("/deleted-wardens", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        id,
+        warden_id,
+        name,
+        email,
+        deleted_at
+      FROM warden_history
+      ORDER BY deleted_at DESC;
+    `;
+
+    const result = await pool.query(query);
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching deleted wardens:", err.message);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 module.exports = router;
