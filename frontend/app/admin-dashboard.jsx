@@ -1,4 +1,4 @@
-// adhas/frontend/app/admin/dashboard.jsx
+// adhas/frontend/app/admin-dashboard.jsx
 
 import React from "react";
 import {
@@ -6,41 +6,42 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  StatusBar,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 
 export default function AdminDashboard() {
   const router = useRouter();
 
-  const adminName = "System Admin";
-  const adminEmail = "sk_admin@cit_nc.edu.in";
-
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor="#0b5cff" barStyle="light-content" />
+    <ScrollView style={styles.page}>
+      {/* HEADER */}
+      <View style={styles.headerBox}>
+        <Text style={styles.title}>🧑‍💼 Admin Dashboard</Text>
+        <Text style={styles.subtitle}>Welcome, System Admin</Text>
+        <Text style={styles.email}>sk_admin@cit_nc.edu.in</Text>
+      </View>
 
-      <Text style={styles.title}>🧑‍💼 Admin Dashboard</Text>
-      <Text style={styles.welcome}>Welcome, {adminName}!</Text>
-      <Text style={styles.email}>{adminEmail}</Text>
-
-      <View style={styles.cardContainer}>
+      {/* GRID BOX */}
+      <View style={styles.grid}>
         {/* Manage Users */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/admin/users")}
         >
           <Text style={styles.icon}>👥</Text>
-          <Text style={styles.cardText}>Manage Users</Text>
+          <Text style={styles.cardTitle}>Manage Users</Text>
+          <Text style={styles.cardSub}>Add, view or edit users</Text>
         </TouchableOpacity>
 
-        {/* View Complaints */}
+        {/* Complaints */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/admin/complaints")}
         >
           <Text style={styles.icon}>📝</Text>
-          <Text style={styles.cardText}>View Complaints</Text>
+          <Text style={styles.cardTitle}>Complaints</Text>
+          <Text style={styles.cardSub}>View and update complaint status</Text>
         </TouchableOpacity>
 
         {/* Attendance Logs */}
@@ -48,8 +49,9 @@ export default function AdminDashboard() {
           style={styles.card}
           onPress={() => router.push("/admin/attendance")}
         >
-          <Text style={styles.icon}>📅</Text>
-          <Text style={styles.cardText}>Attendance Logs</Text>
+          <Text style={styles.icon}>📊</Text>
+          <Text style={styles.cardTitle}>Attendance Logs</Text>
+          <Text style={styles.cardSub}>Track student attendance</Text>
         </TouchableOpacity>
 
         {/* Student History */}
@@ -58,82 +60,118 @@ export default function AdminDashboard() {
           onPress={() => router.push("/admin/student-history")}
         >
           <Text style={styles.icon}>📚</Text>
-          <Text style={styles.cardText}>Student History</Text>
+          <Text style={styles.cardTitle}>Student History</Text>
+          <Text style={styles.cardSub}>View history of vacated students</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Logout Button */}
-      <TouchableOpacity
-        style={styles.logoutBtn}
-        onPress={() => router.push("/")}
-      >
-        <Text style={styles.logoutText}>🚪 Logout</Text>
-      </TouchableOpacity>
-    </View>
+      {/* Logout */}
+      <View style={styles.logoutBox}>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() => router.push("/")}
+        >
+          <Text style={styles.logoutText}>🚪 Logout</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
+/* ------------------- STYLES ------------------- */
+
 const styles = StyleSheet.create({
-  container: {
+  page: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
+    backgroundColor: "#f1f5ff",
   },
+
+  headerBox: {
+    paddingTop: 40,
+    paddingBottom: 20,
+    alignItems: "center",
+  },
+
   title: {
     fontSize: 26,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#0b5cff",
-    marginBottom: 8,
   },
-  welcome: {
-    fontSize: 18,
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    color: "#64748b",
-    marginBottom: 25,
-  },
-  cardContainer: {
-    width: "100%",
-    alignItems: "center",
-  },
-  card: {
-    backgroundColor: "#ffffff",
-    width: "90%",
-    borderRadius: 12,
-    paddingVertical: 25,
-    alignItems: "center",
-    marginBottom: 20,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  icon: {
-    fontSize: 30,
-    marginBottom: 8,
-  },
-  cardText: {
+
+  subtitle: {
     fontSize: 16,
+    marginTop: 4,
+    color: "#334155",
     fontWeight: "600",
+  },
+
+  email: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 2,
+  },
+
+  /* GRID */
+  grid: {
+    paddingHorizontal: 20,
+    marginTop: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  /* CARD (Same as Warden Dashboard) */
+  card: {
+    width: "48%",
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    paddingVertical: 25,
+    paddingHorizontal: 12,
+    marginBottom: 18,
+
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+
+    elevation: 3,
+  },
+
+  icon: {
+    fontSize: 38,
+    marginBottom: 12,
+  },
+
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
     color: "#0f172a",
   },
-  logoutBtn: {
-    backgroundColor: "#ff4d4f",
-    width: "80%",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    position: "absolute",
-    bottom: 40,
+
+  cardSub: {
+    fontSize: 12.5,
+    color: "#64748b",
+    marginTop: 4,
   },
+
+  /* LOGOUT SECTION */
+  logoutBox: {
+    marginTop: 25,
+    marginBottom: 40,
+    alignItems: "center",
+  },
+
+  logoutBtn: {
+    backgroundColor: "#ef4444",
+    width: "90%",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
   logoutText: {
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "800",
     fontSize: 16,
   },
 });

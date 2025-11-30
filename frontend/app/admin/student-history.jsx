@@ -1,4 +1,4 @@
-// frontend/app/warden/studens-history.jsx
+// frontend/app/admin/studens-history.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,

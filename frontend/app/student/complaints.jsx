@@ -24,34 +24,27 @@ export default function StudentComplaints() {
   const [loading, setLoading] = useState(false);
 
   const BACKEND = "http://10.49.102.21:5000";
-
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   let student_id = null;
   if (token) {
     try {
-      const decoded = jwtDecode(token);
-      student_id = decoded.id;
-    } catch {
-      console.log("Token decode error");
-    }
+      student_id = jwtDecode(token)?.id;
+    } catch {}
   }
 
-  // Fetch complaints
+  /* ---------------- FETCH COMPLAINTS ---------------- */
   const fetchComplaints = async () => {
     try {
       setLoading(true);
       const res = await axios.get(
         `${BACKEND}/api/complaints/student/${student_id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       setComplaints(res.data || []);
     } catch (err) {
-      console.log("❌ Fetch issue:", err.response?.data || err);
-      Alert.alert("Error", "Could not load complaints.");
+      Alert.alert("Error", "Unable to load complaints.");
     } finally {
       setLoading(false);
     }
@@ -61,68 +54,70 @@ export default function StudentComplaints() {
     fetchComplaints();
   }, []);
 
-  // Submit complaint
+  /* ---------------- SUBMIT COMPLAINT ---------------- */
   const addComplaint = async () => {
     if (!title.trim() || !description.trim()) {
-      Alert.alert("Missing Fields", "Please fill in all fields.");
+      Alert.alert("Missing Fields", "Please fill all fields.");
       return;
     }
 
     try {
       setLoading(true);
+
       await axios.post(
         `${BACKEND}/api/complaints/`,
         { title, description },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setTitle("");
       setDescription("");
       fetchComplaints();
     } catch (err) {
-      console.log("❌ Submit issue:", err.response?.data || err);
       Alert.alert("Error", "Could not submit complaint.");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ------------------ UI ------------------ */
   return (
     <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
       <Text style={styles.header}>📝 Student Complaint Portal</Text>
 
-      {/* ADD COMPLAINT FORM */}
+      {/* ------------------- FORM -------------------- */}
       <View style={styles.form}>
+        <Text style={styles.sectionLabel}>Raise a New Complaint</Text>
+
         <TextInput
           style={styles.input}
-          placeholder="Enter complaint title"
+          placeholder="Complaint Title"
+          placeholderTextColor="#94a3b8"
           value={title}
           onChangeText={setTitle}
         />
 
         <TextInput
           style={[styles.input, styles.textarea]}
-          placeholder="Enter detailed description"
+          placeholder="Describe your complaint in detail"
+          placeholderTextColor="#94a3b8"
           value={description}
           multiline
-          numberOfLines={4}
           onChangeText={setDescription}
         />
 
-        <TouchableOpacity style={styles.btn} onPress={addComplaint}>
-          <Text style={styles.btnText}>Submit Complaint</Text>
+        <TouchableOpacity style={styles.submitBtn} onPress={addComplaint}>
+          <Text style={styles.submitText}>Submit Complaint</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.subHeader}>📋 Your Previous Complaints</Text>
+      {/* ------------------- HISTORY -------------------- */}
+      <Text style={styles.subHeader}>📋 Your Complaints</Text>
 
-      {/* LOADING */}
       {loading ? (
-        <ActivityIndicator size="large" color="#007bff" />
+        <ActivityIndicator size="large" color="#2563eb" />
       ) : complaints.length === 0 ? (
-        <Text style={{ color: "#64748b" }}>No complaints found.</Text>
+        <Text style={styles.emptyText}>No complaints filed yet.</Text>
       ) : (
         <View style={styles.grid}>
           {complaints.map((c) => {
@@ -145,16 +140,22 @@ export default function StudentComplaints() {
                 <Text style={styles.cardTitle}>{c.title}</Text>
                 <Text style={styles.cardDesc}>{c.description}</Text>
 
-                <Text style={styles.dateText}>📅 Raised: {raised}</Text>
-                <Text style={styles.dateText}>🕒 Updated: {updated}</Text>
+                <View style={styles.row}>
+                  <Text style={styles.date}>📅 Raised: {raised}</Text>
+                </View>
 
+                <View style={styles.row}>
+                  <Text style={styles.date}>🕒 Updated: {updated}</Text>
+                </View>
+
+                {/* STATUS BADGE */}
                 <View
                   style={[
-                    styles.status,
+                    styles.statusBox,
                     c.status === "resolved"
                       ? styles.resolved
                       : c.status === "in-progress"
-                      ? styles.progress
+                      ? styles.inProgress
                       : styles.pending,
                   ]}
                 >
@@ -168,6 +169,7 @@ export default function StudentComplaints() {
         </View>
       )}
 
+      {/* BACK BUTTON */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/student-dashboard")}
@@ -181,116 +183,161 @@ export default function StudentComplaints() {
 /* ------------------------------ STYLES ------------------------------ */
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f8fafc", flex: 1 },
+  page: {
+    flex: 1,
+    backgroundColor: "#eef4ff",
+  },
 
   header: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: "#0f172a",
-    marginBottom: 16,
+    marginBottom: 18,
     textAlign: "center",
   },
 
+  /* ---------- FORM ---------- */
   form: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 20,
-    shadowColor: "#0002",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 3 },
+    backgroundColor: "#ffffff",
+    padding: 18,
+    borderRadius: 14,
+    marginBottom: 25,
+    elevation: 3,
+  },
+
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 10,
   },
 
   input: {
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: "#ccd0d5",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    padding: 12,
     fontSize: 14,
+    color: "#0f172a",
+    marginBottom: 12,
   },
 
-  textarea: { height: 100 },
+  textarea: {
+    height: 110,
+    textAlignVertical: "top",
+  },
 
-  btn: {
-    backgroundColor: "#0b5cff",
+  submitBtn: {
+    backgroundColor: "#2563eb",
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
+    marginTop: 5,
   },
 
-  btnText: { color: "#fff", fontWeight: "700" },
+  submitText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+  },
 
+  /* ---------- HISTORY SECTION ---------- */
   subHeader: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "700",
     color: "#0f172a",
     marginBottom: 16,
   },
 
-  /* GRID LAYOUT OF CARDS */
+  emptyText: {
+    color: "#64748b",
+    fontStyle: "italic",
+    marginBottom: 10,
+  },
+
+  /* GRID */
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
 
+  /* COMPLAINT CARD */
   card: {
     width: "32%",
-    backgroundColor: "#fff",
-    padding: 14,
+    backgroundColor: "#ffffff",
     borderRadius: 12,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 18,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    shadowColor: "#0003",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 3 },
+    borderColor: "#e2e8f0",
   },
 
   cardTitle: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: "700",
     color: "#1e293b",
     marginBottom: 6,
   },
 
   cardDesc: {
-    fontSize: 13,
+    fontSize: 13.5,
     color: "#475569",
-    marginBottom: 8,
+    marginBottom: 10,
   },
 
-  dateText: {
-    fontSize: 12,
-    color: "#64748b",
+  row: {
     marginBottom: 4,
   },
 
-  status: {
+  date: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+
+  /* STATUS BADGES */
+  statusBox: {
     paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 8,
+    alignSelf: "flex-start",
   },
 
   statusText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "700",
+    color: "#fff",
   },
 
-  resolved: { backgroundColor: "#bbf7d0", color: "#065f46" },
-  progress: { backgroundColor: "#dbeafe", color: "#1d4ed8" },
-  pending: { backgroundColor: "#fef3c7", color: "#92400e" },
+  resolved: {
+    backgroundColor: "#16a34a",
+  },
 
+  inProgress: {
+    backgroundColor: "#3b82f6",
+  },
+
+  pending: {
+    backgroundColor: "#f59e0b",
+  },
+
+  /* BUTTON */
   backBtn: {
     backgroundColor: "#0b5cff",
     padding: 12,
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 25,
+    marginBottom: 40,
   },
 
-  backBtnText: { color: "#fff", fontWeight: "700" },
+  backBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 15,
+  },
 });

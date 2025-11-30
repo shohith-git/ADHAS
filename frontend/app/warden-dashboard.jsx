@@ -14,7 +14,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export default function WardenDashboard() {
   const router = useRouter();
 
-  // 🔒 Logout handler
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem("token");
@@ -42,39 +41,35 @@ export default function WardenDashboard() {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ padding: 20 }}
-    >
-      {/* Header */}
-      <Text style={styles.header}>🏫 Warden Dashboard</Text>
-      <Text style={styles.subHeader}>Manage hostel operations efficiently</Text>
+    <ScrollView style={styles.page} contentContainerStyle={{ padding: 20 }}>
+      {/* HEADER */}
+      <View style={styles.headerWrap}>
+        <Text style={styles.header}>Warden Dashboard</Text>
+        <Text style={styles.subHeader}>
+          Manage daily hostel operations effortlessly
+        </Text>
+      </View>
 
-      {/* Functional Cards */}
+      {/* GRID MENU */}
       <View style={styles.grid}>
-        {/* 👨‍🎓 Student Management */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/student-management")}
         >
           <Text style={styles.icon}>📘</Text>
           <Text style={styles.cardTitle}>Student Management</Text>
-          <Text style={styles.cardDesc}>Register, view or remove students</Text>
+          <Text style={styles.cardDesc}>Register, view, remove students</Text>
         </TouchableOpacity>
 
-        {/* 👤 Student Profile */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/student-profile")}
         >
           <Text style={styles.icon}>👤</Text>
           <Text style={styles.cardTitle}>Student Profile</Text>
-          <Text style={styles.cardDesc}>
-            Add or edit student profile details
-          </Text>
+          <Text style={styles.cardDesc}>View or edit profile details</Text>
         </TouchableOpacity>
 
-        {/* 🏢 Room Management */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/rooms")}
@@ -84,17 +79,15 @@ export default function WardenDashboard() {
           <Text style={styles.cardDesc}>Add, edit or delete rooms</Text>
         </TouchableOpacity>
 
-        {/* 📄 Complaints */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/complaints")}
         >
           <Text style={styles.icon}>📄</Text>
           <Text style={styles.cardTitle}>Complaints</Text>
-          <Text style={styles.cardDesc}>Review & update complaint status</Text>
+          <Text style={styles.cardDesc}>Review and update statuses</Text>
         </TouchableOpacity>
 
-        {/* 🤖 AI Assistant */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/ai-assistant")}
@@ -102,21 +95,19 @@ export default function WardenDashboard() {
           <Text style={styles.icon}>🤖</Text>
           <Text style={styles.cardTitle}>AI Assistant</Text>
           <Text style={styles.cardDesc}>
-            Analyze attendance, rooms, complaints
+            Analyze records with intelligent insights
           </Text>
         </TouchableOpacity>
 
-        {/* 🕓 Past Students */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/students-history")}
         >
           <Text style={styles.icon}>⏳</Text>
           <Text style={styles.cardTitle}>Students History</Text>
-          <Text style={styles.cardDesc}>View student history</Text>
+          <Text style={styles.cardDesc}>View past student records</Text>
         </TouchableOpacity>
 
-        {/* 📅 Attendance */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => router.push("/warden/attendance")}
@@ -127,7 +118,7 @@ export default function WardenDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* 🚪 Logout Button */}
+      {/* LOGOUT */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Logout</Text>
       </TouchableOpacity>
@@ -136,19 +127,26 @@ export default function WardenDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: "#f8fafc", flex: 1 },
+  page: {
+    flex: 1,
+    backgroundColor: "#eef2ff",
+  },
+
+  headerWrap: {
+    marginBottom: 20,
+  },
 
   header: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#0f172a",
-    marginBottom: 6,
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#1e3a8a",
+    letterSpacing: 0.3,
   },
 
   subHeader: {
     fontSize: 15,
     color: "#475569",
-    marginBottom: 18,
+    marginTop: 4,
   },
 
   grid: {
@@ -160,49 +158,52 @@ const styles = StyleSheet.create({
   card: {
     width: "47%",
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
+    padding: 18,
+    borderRadius: 16,
     marginBottom: 20,
-    shadowColor: "#00000015",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+
+    borderWidth: 1,
+    borderColor: "#dbe4ff",
+
+    shadowColor: "#1e3a8a",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
 
   icon: {
-    fontSize: 36,
-    marginBottom: 8,
-    textAlign: "left",
+    fontSize: 40,
+    marginBottom: 10,
   },
 
   cardTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#0f172a",
   },
 
   cardDesc: {
     fontSize: 13,
     color: "#64748b",
-    marginTop: 2,
+    marginTop: 4,
   },
 
   logoutBtn: {
     backgroundColor: "#dc2626",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 14,
+    paddingVertical: 14,
     borderRadius: 12,
-    marginTop: 15,
-    marginBottom: 30,
+    marginTop: 20,
+
+    shadowColor: "#dc2626",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   logoutText: {
+    textAlign: "center",
     color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
+    fontWeight: "800",
   },
 });

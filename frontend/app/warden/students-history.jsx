@@ -1,4 +1,4 @@
-// frontend/app/warden/studens-history.jsx
+// frontend/app/warden/students-history.jsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,12 +9,18 @@ import {
   StyleSheet,
   Modal,
   Dimensions,
+  Alert,
 } from "react-native";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+const BACKEND = "http://10.49.102.21:5000";
+
+/**
+ * Students History (Warden) — ADMIN modal UI integrated
+ */
 
 export default function StudentsHistory() {
   const [pastStudents, setStudentsHistory] = useState([]);
@@ -26,19 +32,44 @@ export default function StudentsHistory() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
 
-  const BACKEND = "http://10.49.102.21:5000";
+  const [wardensById, setWardensById] = useState({});
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+  /* ------------------ load wardens map (for remark authors) ------------------ */
+  const loadWardens = async () => {
+    try {
+      const res = await axios.get(`${BACKEND}/api/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const map = {};
+      res.data.forEach((u) => {
+        if (u.role === "warden") {
+          map[String(u.id)] = { id: u.id, name: u.name };
+        }
+      });
+
+      setWardensById(map);
+    } catch (err) {
+      console.warn("Failed loading wardens:", err);
+    }
+  };
+
+  /* ------------------ fetch students history ------------------ */
   const fetchStudentsHistory = async () => {
     try {
+      setLoading(true);
+      await loadWardens();
+
       const res = await axios.get(`${BACKEND}/api/students/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setStudentsHistory(res.data || []);
     } catch (err) {
-      console.error("❌ Error fetching students history:", err);
-      alert("Failed to fetch students history");
+      Alert.alert("Error", "Failed to fetch students history.");
+      console.error("Fetch students history error:", err);
     } finally {
       setLoading(false);
     }
@@ -46,8 +77,25 @@ export default function StudentsHistory() {
 
   useEffect(() => {
     fetchStudentsHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ------------------ format date helper ------------------ */
+  const fmtDate = (d) => {
+    try {
+      return d
+        ? new Date(d).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "—";
+    } catch {
+      return "—";
+    }
+  };
+
+  /* ------------------ open student modal (load remarks & complaints) ------------------ */
   const openStudentModal = async (student) => {
     setSelectedStudent(student);
     setDetailsLoading(true);
@@ -56,47 +104,42 @@ export default function StudentsHistory() {
     const idForFetch = student.user_id ?? student.id; // history rows may use user_id or id
 
     // REMARKS
-    if (student.remarks && Array.isArray(student.remarks)) {
-      setRemarks(student.remarks);
-    } else {
-      try {
+    try {
+      if (student.remarks && Array.isArray(student.remarks)) {
+        setRemarks(student.remarks);
+      } else {
         const remRes = await axios.get(`${BACKEND}/api/remarks/${idForFetch}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setRemarks(remRes.data || []);
-      } catch (err) {
-        console.warn("No remarks via API or failed:", err);
-        setRemarks([]);
       }
+    } catch (err) {
+      console.warn("Failed loading remarks:", err);
+      setRemarks([]);
     }
 
     // COMPLAINTS
-    if (student.complaints && Array.isArray(student.complaints)) {
-      setComplaints(student.complaints);
-    } else {
-      try {
+    try {
+      if (student.complaints && Array.isArray(student.complaints)) {
+        setComplaints(student.complaints);
+      } else {
         const compRes = await axios.get(
           `${BACKEND}/api/complaints/student/${idForFetch}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setComplaints(compRes.data || []);
-      } catch (err) {
-        console.warn("No complaints via API or failed:", err);
-        setComplaints([]);
       }
+    } catch (err) {
+      console.warn("Failed loading complaints:", err);
+      setComplaints([]);
     }
 
     setDetailsLoading(false);
   };
 
-  const fmtDate = (d) => {
-    try {
-      return d ? new Date(d).toLocaleDateString("en-IN") : "—";
-    } catch {
-      return "—";
-    }
-  };
+  const wardenNameFor = (id) => wardensById[String(id)]?.name || "Warden";
 
+  /* ------------------ loading state ------------------ */
   if (loading) {
     return (
       <View style={styles.center}>
@@ -106,13 +149,33 @@ export default function StudentsHistory() {
     );
   }
 
+  /* ------------------ main render ------------------ */
   return (
     <View style={styles.page}>
-      <Text style={styles.title}>🎓 Students History</Text>
+      {/* HEADER */}
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.title}>🎓 Students History</Text>
+          <Text style={styles.subtitle}>
+            Students list — tap a card to view details, remarks and complaints
+          </Text>
+        </View>
 
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={fetchStudentsHistory}
+          >
+            <Ionicons name="refresh" size={18} color="#fff" />
+            <Text style={styles.refreshText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* GRID */}
       <ScrollView contentContainerStyle={styles.grid}>
         {pastStudents.length === 0 ? (
-          <Text style={styles.emptyText}>No Students History found.</Text>
+          <Text style={styles.emptyText}>No students history found.</Text>
         ) : (
           pastStudents.map((s) => {
             const key = s.id ?? s.user_id ?? Math.random();
@@ -120,29 +183,34 @@ export default function StudentsHistory() {
               <TouchableOpacity
                 key={key}
                 style={styles.card}
-                activeOpacity={0.88}
+                activeOpacity={0.9}
                 onPress={() => openStudentModal(s)}
               >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{s.name}</Text>
+                <Text style={styles.name}>{s.name}</Text>
+                <Text style={styles.email}>{s.email}</Text>
+
+                <View style={styles.cardMetaRow}>
+                  <View style={styles.metaBlock}>
+                    <Ionicons
+                      name="id-card-outline"
+                      size={14}
+                      color="#6366f1"
+                    />
+                    <Text style={styles.metaText}>USN: {s.usn || "—"}</Text>
+                  </View>
+
+                  <View style={styles.metaBlock}>
+                    <Ionicons name="home-outline" size={14} color="#10b981" />
                     <Text style={styles.metaText}>
-                      🏢 Hostel ID: {s.hostel_id || "—"}
-                    </Text>
-                    <Text style={styles.email}>{s.email || "—"}</Text>
-                    <Text style={styles.role}>
-                      🎓 {s.dept_branch || s.role || "—"} • {s.year || "—"}
+                      Room: {s.room_no || "—"}
                     </Text>
                   </View>
 
-                  <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
-                    <Text style={styles.date}>Left: {fmtDate(s.left_at)}</Text>
+                  <View style={styles.metaBlock}>
+                    <Ionicons name="school-outline" size={14} color="#f59e0b" />
+                    <Text style={styles.metaText}>
+                      {s.dept_branch || "—"} • {s.year || "—"}
+                    </Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -151,7 +219,7 @@ export default function StudentsHistory() {
         )}
       </ScrollView>
 
-      {/* ========== MODAL ========== */}
+      {/* ======================== MODAL (ADMIN modal UI) ======================== */}
       {selectedStudent && (
         <Modal
           visible={true}
@@ -165,7 +233,7 @@ export default function StudentsHistory() {
         >
           <View style={modalStyles.overlay}>
             <View style={modalStyles.modalBox}>
-              {/* Header */}
+              {/* HEADER */}
               <View style={modalStyles.header}>
                 <View style={{ flex: 1 }}>
                   <Text style={modalStyles.headerName}>
@@ -176,19 +244,21 @@ export default function StudentsHistory() {
                   </Text>
                 </View>
 
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedStudent(null);
-                    setRemarks([]);
-                    setComplaints([]);
-                  }}
-                  style={modalStyles.iconWrap}
-                >
-                  <Ionicons name="close" size={20} color="#0b5cff" />
-                </TouchableOpacity>
+                <View style={{ alignItems: "flex-end" }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedStudent(null);
+                      setRemarks([]);
+                      setComplaints([]);
+                    }}
+                    style={modalStyles.iconWrap}
+                  >
+                    <Ionicons name="close" size={20} color="#0b5cff" />
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Tabs */}
+              {/* TABS */}
               <View style={modalStyles.tabBar}>
                 <TabButton
                   label="Details"
@@ -207,65 +277,77 @@ export default function StudentsHistory() {
                 />
               </View>
 
-              {/* Content */}
+              {/* CONTENT */}
               <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ padding: 16, paddingBottom: 26 }}
+                contentContainerStyle={{ padding: 18, paddingBottom: 24 }}
               >
+                {/* DETAILS TAB */}
                 {activeTab === "details" && (
                   <>
                     <View style={modalStyles.card}>
                       <Text style={modalStyles.cardTitle}>Student Details</Text>
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Hostel ID"
+                          value={selectedStudent.hostel_id}
+                        />
+                      </View>
 
-                      <View style={modalStyles.twoCol}>
-                        <View style={modalStyles.col}>
-                          <DetailRow
-                            label="Hostel ID"
-                            value={selectedStudent.hostel_id}
-                          />
-                          <DetailRow label="USN" value={selectedStudent.usn} />
-                          <DetailRow
-                            label="Department"
-                            value={selectedStudent.dept_branch}
-                          />
-                          <DetailRow
-                            label="Year"
-                            value={selectedStudent.year}
-                          />
-                          <DetailRow
-                            label="Batch"
-                            value={selectedStudent.batch}
-                          />
-                        </View>
+                      <View style={modalStyles.row}>
+                        <DetailRow label="USN" value={selectedStudent.usn} />
+                      </View>
 
-                        <View style={modalStyles.col}>
-                          <DetailRow
-                            label="Phone"
-                            value={selectedStudent.phone_number}
-                          />
-                          <DetailRow
-                            label="Gender"
-                            value={selectedStudent.gender}
-                          />
-                          <DetailRow
-                            label="DOB"
-                            value={
-                              selectedStudent.dob
-                                ? new Date(
-                                    selectedStudent.dob
-                                  ).toLocaleDateString()
-                                : "—"
-                            }
-                          />
-                          <DetailRow
-                            label="Joined"
-                            value={fmtDate(selectedStudent.created_at)}
-                          />
-                          <DetailRow
-                            label="Left"
-                            value={fmtDate(selectedStudent.left_at)}
-                          />
-                        </View>
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Department"
+                          value={selectedStudent.dept_branch}
+                        />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow label="Year" value={selectedStudent.year} />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Batch"
+                          value={selectedStudent.batch}
+                        />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Address"
+                          value={selectedStudent.address}
+                        />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Phone"
+                          value={selectedStudent.phone_number}
+                        />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Gender"
+                          value={selectedStudent.gender}
+                        />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="DOB"
+                          value={
+                            selectedStudent.dob
+                              ? new Date(
+                                  selectedStudent.dob
+                                ).toLocaleDateString()
+                              : "—"
+                          }
+                        />
                       </View>
 
                       <View style={{ marginTop: 12 }}>
@@ -276,35 +358,59 @@ export default function StudentsHistory() {
                       </View>
                     </View>
 
+                    <View style={modalStyles.row}>
+                      <DetailRow
+                        label="Joined"
+                        value={fmtDate(selectedStudent.created_at)}
+                      />
+                    </View>
+
+                    <View style={modalStyles.row}>
+                      <DetailRow
+                        label="Left"
+                        value={fmtDate(selectedStudent.left_at)}
+                      />
+                    </View>
+
                     <View style={modalStyles.parentCard}>
                       <Text style={modalStyles.parentHeader}>
-                        👨 Father's Details
+                        👨 Parent Information
                       </Text>
-                      <Text style={modalStyles.parentText}>
-                        Name: {selectedStudent.father_name || "N/A"}
-                      </Text>
-                      <Text style={modalStyles.parentText}>
-                        Phone: {selectedStudent.father_number || "N/A"}
-                      </Text>
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Father Name"
+                          value={selectedStudent.father_name}
+                        />
+                      </View>
 
-                      <View style={{ height: 10 }} />
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Father Phone"
+                          value={selectedStudent.father_number}
+                        />
+                      </View>
 
-                      <Text style={modalStyles.parentHeader}>
-                        👩 Mother's Details
-                      </Text>
-                      <Text style={modalStyles.parentText}>
-                        Name: {selectedStudent.mother_name || "N/A"}
-                      </Text>
-                      <Text style={modalStyles.parentText}>
-                        Phone: {selectedStudent.mother_number || "N/A"}
-                      </Text>
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Mother Name"
+                          value={selectedStudent.mother_name}
+                        />
+                      </View>
+
+                      <View style={modalStyles.row}>
+                        <DetailRow
+                          label="Mother Phone"
+                          value={selectedStudent.mother_number}
+                        />
+                      </View>
                     </View>
                   </>
                 )}
 
+                {/* REMARKS TAB */}
                 {activeTab === "remarks" && (
-                  <View style={[modalStyles.card, { paddingBottom: 20 }]}>
-                    <Text style={modalStyles.cardTitle}>🗒️ Warden Remarks</Text>
+                  <View style={[modalStyles.card, { paddingBottom: 8 }]}>
+                    <Text style={modalStyles.cardTitle}>🗒️ Remarks</Text>
 
                     {detailsLoading ? (
                       <ActivityIndicator size="small" color="#2563eb" />
@@ -313,46 +419,28 @@ export default function StudentsHistory() {
                         No remarks recorded.
                       </Text>
                     ) : (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingVertical: 10 }}
-                      >
-                        {remarks.map((r) => (
-                          <View
-                            key={r.id ?? JSON.stringify(r)}
-                            style={modalStyles.remarkCard}
-                          >
-                            <Text style={modalStyles.remarkText}>
-                              {r.remark}
+                      remarks.map((r) => (
+                        <View
+                          key={r.id ?? JSON.stringify(r)}
+                          style={modalStyles.remarkRow}
+                        >
+                          <Text style={modalStyles.remarkText}>{r.remark}</Text>
+
+                          <Text style={modalStyles.remarkMeta}>
+                            {fmtDate(r.created_at)} •{" "}
+                            <Text style={modalStyles.remarkWarden}>
+                              {wardenNameFor(r.warden_id)}
                             </Text>
-                            <Text style={modalStyles.remarkMeta}>
-                              {r.created_at
-                                ? new Date(r.created_at).toLocaleString(
-                                    "en-IN",
-                                    {
-                                      day: "2-digit",
-                                      month: "short",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
-                                  )
-                                : "—"}{" "}
-                              •{" "}
-                              {r.warden_id
-                                ? `Warden #${r.warden_id}`
-                                : "Warden"}
-                            </Text>
-                          </View>
-                        ))}
-                      </ScrollView>
+                          </Text>
+                        </View>
+                      ))
                     )}
                   </View>
                 )}
 
+                {/* COMPLAINTS TAB */}
                 {activeTab === "complaints" && (
-                  <View style={[modalStyles.card, { paddingBottom: 20 }]}>
+                  <View style={[modalStyles.card, { paddingBottom: 8 }]}>
                     <Text style={modalStyles.cardTitle}>⚠️ Complaints</Text>
 
                     {detailsLoading ? (
@@ -362,63 +450,52 @@ export default function StudentsHistory() {
                         No complaints filed.
                       </Text>
                     ) : (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingVertical: 10 }}
-                      >
-                        {complaints.map((c) => {
-                          const [bgColor, textColor] = getComplaintColors(
-                            c.status
-                          );
-                          return (
-                            <View
-                              key={c.id ?? JSON.stringify(c)}
-                              style={modalStyles.complaintCard}
-                            >
-                              <Text style={modalStyles.complaintTitle}>
-                                {c.title}
-                              </Text>
-                              <Text
-                                style={modalStyles.complaintDesc}
-                                numberOfLines={5}
-                              >
-                                {c.description}
-                              </Text>
-                              <Text style={modalStyles.dateText}>
-                                Raised: {fmtDate(c.created_at)}
-                              </Text>
-                              <Text style={modalStyles.dateText}>
-                                Updated: {fmtDate(c.updated_at)}
-                              </Text>
+                      complaints.map((c) => {
+                        const [bgC, textC] = getComplaintColors(c.status);
 
-                              <View
+                        return (
+                          <View
+                            key={c.id ?? JSON.stringify(c)}
+                            style={modalStyles.complaintRow}
+                          >
+                            <Text style={modalStyles.complaintTitle}>
+                              {c.title}
+                            </Text>
+                            <Text style={modalStyles.complaintDesc}>
+                              {c.description}
+                            </Text>
+
+                            <Text style={modalStyles.smallMeta}>
+                              Submitted: {fmtDate(c.created_at)}
+                            </Text>
+                            <Text style={modalStyles.smallMeta}>
+                              Updated: {fmtDate(c.updated_at)}
+                            </Text>
+
+                            <View
+                              style={[
+                                modalStyles.statusBadge,
+                                { backgroundColor: bgC },
+                              ]}
+                            >
+                              <Text
                                 style={[
-                                  modalStyles.statusBadge,
-                                  { backgroundColor: bgColor },
+                                  modalStyles.statusText,
+                                  { color: textC },
                                 ]}
                               >
-                                <Text
-                                  style={[
-                                    modalStyles.statusText,
-                                    { color: textColor },
-                                  ]}
-                                >
-                                  {c.status
-                                    ? c.status.toUpperCase()
-                                    : "PENDING"}
-                                </Text>
-                              </View>
+                                {c.status?.toUpperCase() || "PENDING"}
+                              </Text>
                             </View>
-                          );
-                        })}
-                      </ScrollView>
+                          </View>
+                        );
+                      })
                     )}
                   </View>
                 )}
               </ScrollView>
 
-              {/* Footer buttons */}
+              {/* FOOTER */}
               <View style={modalStyles.footerRow}>
                 <TouchableOpacity
                   style={modalStyles.closeBtn}
@@ -437,6 +514,7 @@ export default function StudentsHistory() {
         </Modal>
       )}
 
+      {/* BACK BUTTON */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => router.push("/warden-dashboard")}
@@ -447,11 +525,11 @@ export default function StudentsHistory() {
   );
 }
 
-/* ===================== Small helper components ===================== */
+/* ------------ SMALL COMPONENTS -------------- */
 
 function DetailRow({ label, value }) {
   return (
-    <View style={modalStyles.detailRow}>
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
       <Text style={modalStyles.smallLabel}>{label}</Text>
       <Text style={modalStyles.valueText}>{value || "—"}</Text>
     </View>
@@ -462,19 +540,18 @@ function TabButton({ label, active, onPress }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[modalStyles.tabBtn, active ? modalStyles.tabBtnActive : null]}
+      style={[modalStyles.tabBtn, active && modalStyles.tabBtnActive]}
     >
       <Text
-        style={[
-          modalStyles.tabBtnText,
-          active ? modalStyles.tabBtnTextActive : null,
-        ]}
+        style={[modalStyles.tabBtnText, active && modalStyles.tabBtnTextActive]}
       >
         {label}
       </Text>
     </TouchableOpacity>
   );
 }
+
+/* ------------ Complaint badge colors -------------- */
 
 function getComplaintColors(status) {
   if (!status) return ["#fde68a", "#92400e"];
@@ -484,62 +561,109 @@ function getComplaintColors(status) {
   return ["#fde68a", "#92400e"];
 }
 
-/* ===================== Styles ===================== */
+/* ============================================================
+   MAIN PAGE STYLES
+   ============================================================ */
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#f3f6fb", flex: 1, padding: 20 },
-  title: {
-    fontSize: 22,
+  page: { backgroundColor: "#f3f6fb", flex: 1, padding: 18 },
+
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  title: { fontSize: 24, fontWeight: "900", color: "#0b5cff" },
+  subtitle: { color: "#6b7280", marginTop: 4 },
+
+  refreshBtn: {
+    backgroundColor: "#0b5cff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  refreshText: { color: "#fff", fontWeight: "800", marginLeft: 8 },
+
+  backSmallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eef2ff",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+  },
+  backSmallText: {
+    marginLeft: 6,
+    color: "#4f46e5",
     fontWeight: "700",
-    color: "#0b5cff",
-    marginBottom: 14,
   },
 
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
-    gap: 12,
+    gap: 14,
+    paddingBottom: 24,
   },
 
   card: {
-    width: "31%",
-    minWidth: 240,
+    width: SCREEN_W > 1200 ? "30%" : SCREEN_W > 900 ? "47%" : "100%",
+    minWidth: 260,
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#e6eefc",
-    elevation: 2,
+    elevation: 3,
   },
 
-  name: { fontSize: 15, fontWeight: "700", color: "#0f172a" },
-  metaText: { fontSize: 12, color: "#64748b", marginTop: 6 },
-  email: { color: "#475569", marginVertical: 6 },
-  role: { fontSize: 13, color: "#2563eb", fontWeight: "600" },
-  date: { fontSize: 12, color: "#64748b", marginTop: 6 },
+  name: { fontSize: 16, fontWeight: "900", color: "#0f172a" },
+  email: { color: "#475569", marginTop: 8 },
+
+  cardMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    gap: 8,
+  },
+
+  metaBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  metaText: { color: "#6b7280", fontWeight: "700", fontSize: 13 },
 
   emptyText: {
     textAlign: "center",
     color: "#94a3b8",
-    fontSize: 14,
-    marginTop: 8,
+    fontSize: 15,
+    marginTop: 28,
   },
 
   backBtn: {
-    marginTop: 18,
+    marginTop: 10,
     backgroundColor: "#0b5cff",
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
+    marginBottom: 18,
   },
-  backBtnText: { color: "#fff", fontWeight: "700" },
+  backBtnText: { color: "#fff", fontWeight: "800" },
 
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });
 
-/* ===================== Modal styles ===================== */
+/* ============================================================
+   MODAL STYLES (ADMIN modal look)
+   ============================================================ */
 
 const modalStyles = StyleSheet.create({
   overlay: {
@@ -549,180 +673,173 @@ const modalStyles = StyleSheet.create({
     alignItems: "center",
     padding: 14,
   },
+
   modalBox: {
-    width: SCREEN_W > 1200 ? "86%" : "94%",
-    maxHeight: SCREEN_H * 0.88,
+    width: SCREEN_W > 1200 ? "86%" : "96%",
+    maxHeight: SCREEN_H * 0.92,
     backgroundColor: "#fff",
     borderRadius: 12,
     overflow: "hidden",
-    elevation: 12,
+    elevation: 20,
   },
 
   header: {
     flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderColor: "#eef2ff",
   },
-  headerName: { fontSize: 20, fontWeight: "800", color: "#0b5cff" },
-  headerSub: { fontSize: 13, color: "#475569", marginTop: 2 },
+
+  headerName: { fontSize: 20, fontWeight: "900", color: "#0b5cff" },
+  headerSub: { fontSize: 13, color: "#475569" },
+  smallMeta: { fontSize: 12, color: "#6b7280", marginBottom: 6 },
+
   iconWrap: {
-    padding: 8,
+    padding: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#e6eefc",
-    marginLeft: 12,
   },
 
+  /* Tabs */
   tabBar: {
     flexDirection: "row",
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: 12,
+    backgroundColor: "#fbfdff",
     borderBottomWidth: 1,
     borderColor: "#f1f5f9",
-    backgroundColor: "#fbfdff",
   },
+
   tabBtn: {
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
   },
-  tabBtnActive: {
-    backgroundColor: "#e6f0ff",
-  },
-  tabBtnText: {
-    color: "#475569",
-    fontWeight: "700",
-  },
-  tabBtnTextActive: {
-    color: "#0b5cff",
+  tabBtnActive: { backgroundColor: "#e6f0ff" },
+  tabBtnText: { fontWeight: "800", color: "#475569" },
+  tabBtnTextActive: { color: "#0b5cff" },
+
+  /* Main modal cards */
+  card: {
+    backgroundColor: "#f5f3ff", // lavender bg
+    padding: 18,
+    marginVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e0ff",
   },
 
-  card: {
-    backgroundColor: "#fff",
-    padding: 14,
-    marginVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#eef2ff",
-    elevation: 2,
-  },
   cardTitle: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "900",
     color: "#0b5cff",
     marginBottom: 10,
   },
 
-  twoCol: {
-    flexDirection: "row",
-    gap: 18,
-  },
-  col: {
-    flex: 1,
-    minWidth: 200,
-  },
+  twoCol: { flexDirection: "row", gap: 18 },
+  col: { flex: 1 },
 
   detailRow: {
     flexDirection: "row",
     marginBottom: 10,
   },
-  smallLabel: {
-    width: 110,
-    color: "#475569",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  valueText: {
-    flex: 1,
-    color: "#0f172a",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  smallLabel: { width: 120, color: "#475569", fontWeight: "800" },
+  valueText: { flex: 1, color: "#0f172a", fontWeight: "700" },
 
   parentCard: {
-    backgroundColor: "#fff",
-    padding: 14,
-    marginVertical: 8,
-    borderRadius: 10,
+    backgroundColor: "#f5f3ff",
+    padding: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#eef2ff",
+    borderColor: "#e2e0ff",
+    marginTop: 10,
   },
-  parentHeader: { color: "#2563eb", fontWeight: "800", marginBottom: 6 },
-  parentText: { color: "#334155", fontSize: 14, marginBottom: 4 },
 
-  remarkCard: {
-    width: 320,
-    backgroundColor: "#f8fbff",
-    borderRadius: 10,
-    padding: 14,
-    marginRight: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#0b5cff",
-    elevation: 2,
+  parentHeader: { fontWeight: "900", color: "#2563eb", marginBottom: 6 },
+  parentText: { color: "#334155", marginBottom: 4 },
+
+  row: {
+    backgroundColor: "#f5f3ff", // lavender
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e2e0ff",
   },
+
+  /* REMARKS ROW */
+  remarkRow: {
+    padding: 14,
+    marginBottom: 10,
+    borderRadius: 10,
+    backgroundColor: "#f8faff",
+    borderWidth: 1,
+    borderColor: "#e5e9ff",
+  },
+
   remarkText: {
-    fontSize: 14,
-    color: "#0f172a",
-    lineHeight: 20,
-  },
-  remarkMeta: { marginTop: 8, fontSize: 12, color: "#64748b" },
-
-  complaintCard: {
-    width: 320,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 14,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: "#eef2ff",
-    elevation: 2,
-  },
-  complaintTitle: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#0f172a",
-    marginBottom: 8,
   },
-  complaintDesc: {
+
+  remarkMeta: {
+    marginTop: 6,
     fontSize: 13,
+    fontWeight: "600",
     color: "#475569",
-    lineHeight: 18,
-    marginBottom: 8,
   },
-  dateText: { fontSize: 12, color: "#64748b" },
+
+  remarkWarden: {
+    color: "#0b5cff",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+
+  /* COMPLAINT ROW */
+  complaintRow: {
+    padding: 14,
+    marginBottom: 12,
+    borderRadius: 10,
+    backgroundColor: "#f8faff",
+    borderWidth: 1,
+    borderColor: "#e5e9ff",
+  },
+
+  complaintTitle: { fontSize: 15, fontWeight: "900", color: "#0f172a" },
+  complaintDesc: { marginTop: 6, color: "#475569" },
+
+  smallMeta: { fontSize: 12, color: "#6b7280", marginBottom: 6 },
 
   statusBadge: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
-    alignSelf: "flex-start",
-    marginTop: 8,
   },
-  statusText: { fontWeight: "800", fontSize: 12 },
+  statusText: { fontWeight: "900", fontSize: 12 },
 
   footerRow: {
     padding: 12,
     borderTopWidth: 1,
     borderColor: "#eef2ff",
     alignItems: "center",
-    justifyContent: "center",
   },
 
   closeBtn: {
     flexDirection: "row",
     backgroundColor: "#0b5cff",
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
   },
-  closeText: { color: "#fff", marginLeft: 8, fontWeight: "800" },
+  closeText: { color: "#fff", marginLeft: 8, fontWeight: "900" },
 
   emptyText: {
     textAlign: "center",

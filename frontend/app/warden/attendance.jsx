@@ -280,6 +280,8 @@ export default function AttendancePanel() {
 }
 
 /* ---------------- STYLES ---------------- */
+/* ---------------- UPDATED UI STYLES ---------------- */
+
 const styles = StyleSheet.create({
   toast: {
     position: "absolute",
@@ -287,93 +289,127 @@ const styles = StyleSheet.create({
     left: "50%",
     width: 330,
     marginLeft: -165,
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: "#ffffffee",
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: "#1e3a8a",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 8,
     zIndex: 9999,
-    alignItems: "center",
   },
-  toastText: { fontWeight: "700", color: "#0f172a" },
+  toastText: { fontWeight: "800", color: "#0f172a", fontSize: 15 },
 
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 14,
+    marginBottom: 20,
+    alignItems: "center",
   },
   header: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "800",
-    color: "#0b5cff",
+    color: "#1e3a8a",
+    letterSpacing: 0.3,
   },
 
   logBtn: {
     backgroundColor: "#2563eb",
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    shadowColor: "#1e3a8a",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  logBtnText: { color: "#fff", fontWeight: "700" },
+  logBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
   search: {
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 18,
     borderWidth: 1,
     borderColor: "#cbd5e1",
+    fontSize: 15,
+    color: "#0f172a",
+
+    shadowColor: "#94a3b8",
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
 
+  /* TABLE CONTAINER */
   table: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    overflow: "hidden",
+    backgroundColor: "#f8faff",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#e4e4e7",
+    borderColor: "#dbe4ff",
+    overflow: "hidden",
+
+    shadowColor: "#1e3a8a",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+
+  /* TABLE HEADER ROW */
+  headerRowTable: {
+    backgroundColor: "#e3eaff",
+    borderBottomWidth: 1,
+    borderColor: "#d0d7ff",
+    paddingVertical: 14,
   },
 
   row: {
     flexDirection: "row",
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 10,
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#eef2ff",
   },
 
-  headerRowTable: {
-    backgroundColor: "#f4f4f5",
-  },
-
+  /* CELL */
   cell: {
     fontSize: 14,
     color: "#1e293b",
+    fontWeight: "600",
   },
 
+  /* STATUS BOX */
   statusBox: {
     flexDirection: "row",
     alignItems: "center",
-    columnGap: 6,
+    gap: 6,
   },
   statusText: {
-    fontWeight: "700",
+    fontWeight: "800",
+    fontSize: 13,
   },
   presentText: { color: "#16a34a" },
   absentText: { color: "#dc2626" },
 
   undoIcon: {
-    backgroundColor: "#e2e8f0",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    backgroundColor: "#e0e7ff",
   },
-  undoText: { fontWeight: "800", fontSize: 14 },
+  undoText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1e3a8a",
+  },
 
+  /* ACTION BUTTONS */
   actions: {
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 6,
   },
 
   btn: {
@@ -382,18 +418,37 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minWidth: 85,
     alignItems: "center",
+
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
+
   presentBtn: { backgroundColor: "#22c55e" },
   absentBtn: { backgroundColor: "#ef4444" },
   disabledBtn: { backgroundColor: "#94a3b8" },
-  btnText: { color: "#fff", fontWeight: "700" },
+
+  btnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
   backBtn: {
-    marginTop: 20,
+    marginTop: 30,
     backgroundColor: "#1e3a8a",
-    padding: 14,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
+
+    shadowColor: "#1e3a8a",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
   },
-  backText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  backText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 16,
+  },
+
+  /* CENTER LOADING */
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

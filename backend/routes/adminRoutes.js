@@ -11,20 +11,28 @@ const { deleteWarden } = require("../controllers/wardenController");
 // ─────────────────────────────────────────────
 //
 
-// 🟢 Get ALL active wardens + students
+// 🟢 Get ALL active wardens + students (now includes USN + Room)
 router.get("/users", async (req, res) => {
   try {
     const query = `
       SELECT 
-        id,
-        name,
-        email,
-        role,
+        u.id,
+        u.name,
+        u.email,
+        u.role,
         false AS is_deleted,
-        NULL AS left_at
-      FROM users
-      WHERE role IN ('warden', 'student')
-      ORDER BY role, id;
+        NULL AS left_at,
+
+        -- FIX ADDED BELOW
+        sp.usn,
+        sp.room_no
+
+      FROM users u
+      LEFT JOIN student_profiles sp 
+        ON sp.user_id = u.id
+
+      WHERE u.role IN ('warden', 'student')
+      ORDER BY u.role, u.id;
     `;
 
     const result = await pool.query(query);
@@ -105,12 +113,7 @@ router.post("/register-warden", async (req, res) => {
   }
 });
 
-//
-// ─────────────────────────────────────────────
-// 🧩 COMPLAINTS OVERVIEW
-// ─────────────────────────────────────────────
-//
-
+// 🟢 COMPLAINTS OVERVIEW (now includes USN + room_no)
 router.get("/complaints", async (req, res) => {
   try {
     const query = `
@@ -118,12 +121,24 @@ router.get("/complaints", async (req, res) => {
         c.id,
         u.name AS student_name,
         u.email AS student_email,
+
+        -- FIX ADDED BELOW
+        sp.usn,
+        sp.room_no,
+
         c.title,
         c.description,
         c.status,
-        TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+
+        TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+        TO_CHAR(c.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+
       FROM complaints c
-      JOIN users u ON u.id = c.student_id
+      JOIN users u 
+        ON u.id = c.student_id
+      LEFT JOIN student_profiles sp 
+        ON sp.user_id = c.student_id
+
       ORDER BY c.created_at DESC;
     `;
 

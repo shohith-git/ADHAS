@@ -1,3 +1,5 @@
+// adhas/frontend/app/warden/complaints.jsx
+
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -7,7 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
-  ScrollView, // ✅ ADDED THIS
+  ScrollView,
 } from "react-native";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,7 +25,9 @@ export default function Complaints() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // ✅ Fetch complaints
+  /* ----------------------------------------------------
+     Fetch Complaints
+  ---------------------------------------------------- */
   const fetchComplaints = async () => {
     try {
       const res = await axios.get(`${BACKEND}/api/complaints`, {
@@ -31,7 +35,6 @@ export default function Complaints() {
       });
       setComplaints(res.data);
     } catch (err) {
-      console.error("❌ Error fetching complaints:", err.response?.data || err);
       Alert.alert("Error", "Failed to load complaints.");
     } finally {
       setLoading(false);
@@ -42,7 +45,9 @@ export default function Complaints() {
     fetchComplaints();
   }, []);
 
-  // ✅ Update complaint status
+  /* ----------------------------------------------------
+     Update Status
+  ---------------------------------------------------- */
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
@@ -55,53 +60,45 @@ export default function Complaints() {
           },
         }
       );
-      Alert.alert("✅ Updated", `Status changed to "${newStatus}"`);
+
       fetchComplaints();
     } catch (err) {
-      console.error("❌ Error updating complaint status:", err);
-      Alert.alert("Error", "Failed to update status");
+      Alert.alert("Error", "Failed to update complaint status.");
     }
   };
 
-  // Helper for badge colors
-  const getStatusStyle = (status) => {
-    switch (status?.toLowerCase()) {
-      case "resolved":
-        return { backgroundColor: "#bbf7d0", color: "#065f46" };
-      case "in-progress":
-      case "in progress":
-        return { backgroundColor: "#fde68a", color: "#92400e" };
-      case "denied":
-        return { backgroundColor: "#fecaca", color: "#991b1b" };
-      default:
-        return { backgroundColor: "#fef9c3", color: "#854d0e" };
-    }
+  const badgeColors = {
+    resolved: { bg: "#22c55e22", text: "#15803d" },
+    "in-progress": { bg: "#facc1522", text: "#b45309" },
+    pending: { bg: "#fef08a44", text: "#854d0e" },
+    denied: { bg: "#fecaca44", text: "#b91c1c" },
   };
 
   if (loading)
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0b5cff" />
-        <Text>Loading complaints...</Text>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={{ marginTop: 8 }}>Loading complaints...</Text>
       </View>
     );
 
+  /* ----------------------------------------------------
+     UI
+  ---------------------------------------------------- */
+
   return (
     <View style={styles.page}>
-      <Text style={styles.title}>📋 Student Complaints</Text>
+      <Text style={styles.header}>📋 Student Complaints</Text>
 
-      {/* ✅ SCROLL FIX — Grid wrapped inside ScrollView */}
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.grid}>
           {complaints.length === 0 ? (
-            <Text style={{ color: "#64748b", marginTop: 20 }}>
-              No complaints available.
-            </Text>
+            <Text style={styles.emptyText}>No complaints found.</Text>
           ) : (
             complaints.map((c) => {
-              const style = getStatusStyle(c.status || "pending");
+              const badge = badgeColors[c.status] || badgeColors["pending"];
 
-              const createdOn = c.created_at
+              const created = c.created_at
                 ? new Date(c.created_at).toLocaleDateString("en-IN", {
                     day: "2-digit",
                     month: "short",
@@ -109,7 +106,7 @@ export default function Complaints() {
                   })
                 : "—";
 
-              const updatedOn = c.updated_at
+              const updated = c.updated_at
                 ? new Date(c.updated_at).toLocaleDateString("en-IN", {
                     day: "2-digit",
                     month: "short",
@@ -121,43 +118,38 @@ export default function Complaints() {
                 <TouchableOpacity
                   key={c.id}
                   style={styles.card}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                   onPress={() => setSelectedComplaint(c)}
                 >
+                  <Text style={styles.cardTitle}>{c.title}</Text>
+
                   <Text style={styles.name}>{c.student_name}</Text>
-                  <Text style={styles.studentHostel}>
-                    🏢 Hostel ID: {c.hostel_id || "—"}
-                  </Text>
-
                   <Text style={styles.meta}>📧 {c.email}</Text>
+
                   <Text style={styles.meta}>
-                    🏠 Room: {c.room_no || "N/A"} | {c.dept_branch || "Dept"}
-                  </Text>
-                  <Text style={styles.meta}>
-                    🎓 Year: {c.year || "—"} | USN: {c.usn || "—"}
+                    🏠 Room: {c.room_no || "—"} • {c.dept_branch || "Dept"}
                   </Text>
 
-                  <View style={styles.dateRow}>
-                    <Ionicons name="time-outline" size={13} color="#475569" />
-                    <Text style={styles.dateText}>Raised: {createdOn}</Text>
+                  <Text style={styles.meta}>🎓 Year: {c.year || "—"}</Text>
+                  <Text style={styles.meta}>🪪 USN: {c.usn || "—"}</Text>
+
+                  <View style={styles.row}>
+                    <Ionicons name="time-outline" size={14} color="#475569" />
+                    <Text style={styles.date}>Raised: {created}</Text>
                   </View>
-                  <View style={styles.dateRow}>
+
+                  <View style={styles.row}>
                     <Ionicons
                       name="refresh-outline"
-                      size={13}
+                      size={14}
                       color="#475569"
                     />
-                    <Text style={styles.dateText}>Updated: {updatedOn}</Text>
+                    <Text style={styles.date}>Updated: {updated}</Text>
                   </View>
 
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: style.backgroundColor },
-                    ]}
-                  >
-                    <Text style={[styles.statusText, { color: style.color }]}>
-                      {c.status?.toUpperCase()}
+                  <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                    <Text style={[styles.badgeText, { color: badge.text }]}>
+                      {c.status.toUpperCase()}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -167,7 +159,7 @@ export default function Complaints() {
         </View>
       </ScrollView>
 
-      {/* MODAL (unchanged) */}
+      {/* MODAL DETAILS */}
       {selectedComplaint && (
         <Modal
           visible={true}
@@ -175,28 +167,33 @@ export default function Complaints() {
           animationType="fade"
           onRequestClose={() => setSelectedComplaint(null)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalBox}>
+          <View style={styles.overlay}>
+            <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>{selectedComplaint.title}</Text>
+
               <Text style={styles.modalMeta}>
-                👤 {selectedComplaint.student_name} | Room:{" "}
-                {selectedComplaint.room_no || "N/A"}
+                👤 {selectedComplaint.student_name}
               </Text>
               <Text style={styles.modalMeta}>📧 {selectedComplaint.email}</Text>
+              <Text style={styles.modalMeta}>
+                🏠 Room: {selectedComplaint.room_no || "—"}
+              </Text>
+
               <Text style={styles.modalDesc}>
                 {selectedComplaint.description}
               </Text>
 
-              <View style={styles.modalStatusRow}>
-                <Text style={styles.modalLabel}>Change Status:</Text>
+              {/* Status Dropdown */}
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Status:</Text>
                 <Picker
                   selectedValue={selectedComplaint.status}
                   style={styles.picker}
-                  onValueChange={(newStatus) => {
-                    updateStatus(selectedComplaint.id, newStatus);
+                  onValueChange={(value) => {
+                    updateStatus(selectedComplaint.id, value);
                     setSelectedComplaint({
                       ...selectedComplaint,
-                      status: newStatus,
+                      status: value,
                     });
                   }}
                 >
@@ -229,14 +226,27 @@ export default function Complaints() {
   );
 }
 
-const styles = StyleSheet.create({
-  page: { backgroundColor: "#f9fafb", flex: 1, padding: 20 },
+/* ----------------------------------------------------
+   STYLES (Professionally Updated)
+---------------------------------------------------- */
 
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
+const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: "#eef4ff",
+    padding: 20,
+  },
+
+  header: {
+    fontSize: 26,
+    fontWeight: "800",
     color: "#0b5cff",
-    marginBottom: 15,
+    marginBottom: 20,
+  },
+
+  emptyText: {
+    color: "#64748b",
+    fontStyle: "italic",
   },
 
   grid: {
@@ -247,112 +257,150 @@ const styles = StyleSheet.create({
 
   card: {
     width: "31%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 15,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    elevation: 3,
+    elevation: 4,
+    shadowColor: "#00000030",
+    shadowRadius: 6,
+    shadowOpacity: 0.1,
   },
 
-  name: { fontWeight: "700", fontSize: 16, color: "#0f172a" },
-  meta: { fontSize: 13, color: "#475569", marginVertical: 2 },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1e293b",
+    marginBottom: 6,
+  },
 
-  dateRow: {
+  name: {
+    fontWeight: "700",
+    fontSize: 14,
+    color: "#0f172a",
+    marginBottom: 3,
+  },
+
+  meta: {
+    fontSize: 13,
+    color: "#475569",
+    marginVertical: 1,
+  },
+
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 3,
+    marginTop: 4,
   },
 
-  dateText: {
+  date: {
     fontSize: 12,
-    color: "#475569",
     marginLeft: 5,
+    color: "#475569",
   },
 
-  statusBadge: {
-    alignSelf: "flex-start",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+  badge: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderRadius: 8,
-    marginTop: 6,
+    marginTop: 8,
+    alignSelf: "flex-start",
   },
 
-  statusText: { fontWeight: "700", fontSize: 12 },
+  badgeText: {
+    fontWeight: "700",
+    fontSize: 12,
+  },
 
-  modalOverlay: {
+  overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
   },
 
-  modalBox: {
+  modalCard: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    width: "85%",
-    padding: 20,
-    elevation: 6,
+    width: "92%",
+    borderRadius: 16,
+    padding: 22,
+    elevation: 8,
   },
 
   modalTitle: {
     fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
+    fontWeight: "800",
     marginBottom: 8,
+    color: "#1e293b",
   },
 
-  modalMeta: { color: "#475569", fontSize: 13, marginVertical: 2 },
-  modalDesc: {
-    color: "#334155",
+  modalMeta: {
     fontSize: 14,
-    marginVertical: 10,
+    color: "#475569",
+    marginVertical: 2,
+  },
+
+  modalDesc: {
+    fontSize: 15,
+    color: "#334155",
+    marginVertical: 12,
     lineHeight: 20,
   },
 
-  modalStatusRow: {
+  statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 15,
     justifyContent: "space-between",
   },
 
-  modalLabel: { fontWeight: "600", color: "#1e293b", fontSize: 14 },
-  picker: { height: 40, width: 160 },
+  statusLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e293b",
+  },
+
+  picker: {
+    height: 40,
+    width: 170,
+  },
 
   closeBtn: {
     flexDirection: "row",
     backgroundColor: "#0b5cff",
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
-    marginTop: 15,
+    marginTop: 20,
   },
 
   closeText: {
     color: "#fff",
     fontWeight: "700",
-    marginLeft: 5,
+    marginLeft: 6,
   },
 
   backBtn: {
     backgroundColor: "#0b5cff",
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 18,
   },
 
-  backBtnText: { color: "#fff", fontWeight: "700" },
+  backBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+  },
 
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-
-  studentHostel: {
-    fontSize: 13,
-    color: "#1e3a8a",
-    fontWeight: "600",
-    marginVertical: 2,
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

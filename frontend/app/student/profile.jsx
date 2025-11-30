@@ -34,7 +34,7 @@ export default function StudentProfile() {
 
   const fetchProfile = async () => {
     if (!studentId || !token) {
-      Alert.alert("Error", "Your session expired. Please login again.", [
+      Alert.alert("Error", "Session expired. Please login again.", [
         { text: "OK", onPress: redirectToLogin },
       ]);
       setLoading(false);
@@ -46,11 +46,10 @@ export default function StudentProfile() {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
-
       setStudent(res.data);
     } catch (err) {
-      Alert.alert("Error", "Unable to load profile. Try again later.");
-      console.log("Profile error:", err.message || err);
+      console.log("Profile error:", err);
+      Alert.alert("Error", "Unable to load your profile.");
     } finally {
       setLoading(false);
     }
@@ -73,7 +72,6 @@ export default function StudentProfile() {
     return (
       <View style={styles.centered}>
         <Text>No profile found.</Text>
-
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.push("/student-dashboard")}
@@ -90,7 +88,7 @@ export default function StudentProfile() {
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.container}>
       {/* HEADER BLOCK */}
-      <View style={styles.profileHeader}>
+      <View style={styles.headerCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {student.name?.charAt(0)?.toUpperCase()}
@@ -101,14 +99,20 @@ export default function StudentProfile() {
         <Text style={styles.email}>{student.email}</Text>
       </View>
 
-      {/* MAIN CARD */}
+      {/* INFO CARD */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile Information</Text>
+        <Text style={styles.sectionTitle}>📘 Academic Details</Text>
 
         <Row label="Department" value={student.dept_branch} />
         <Row label="Year" value={student.year} />
         <Row label="Batch" value={student.batch} />
-        <Row label="Room Number" value={student.room_no} />
+        <Row label="Room Number" value={student.room_no || "Unallocated"} />
+      </View>
+
+      {/* PERSONAL DETAILS */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>👤 Personal Information</Text>
+
         <Row label="Gender" value={student.gender} />
         <Row label="Date of Birth" value={student.dob?.split("T")[0]} />
         <Row label="Phone" value={student.phone_number} />
@@ -117,7 +121,7 @@ export default function StudentProfile() {
 
       {/* PARENT DETAILS */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Parent Details</Text>
+        <Text style={styles.sectionTitle}>👪 Parent Details</Text>
 
         <Row label="Father Name" value={student.father_name} />
         <Row label="Father Number" value={student.father_number} />
@@ -147,12 +151,12 @@ const Row = ({ label, value }) => (
 );
 
 /* ------------------------------
-   PROFESSIONAL STYLES
+   UI STYLES (UPGRADED)
 --------------------------------*/
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#eef4ff",
   },
 
   container: {
@@ -160,58 +164,61 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  /* HEADER */
-  profileHeader: {
+  /* HEADER CARD */
+  headerCard: {
     alignItems: "center",
     marginBottom: 25,
-    paddingVertical: 25,
+    paddingVertical: 30,
     backgroundColor: "#fff",
-    borderRadius: 15,
-    elevation: 3,
+    borderRadius: 16,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
 
   avatar: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
+    width: 95,
+    height: 95,
+    borderRadius: 50,
     backgroundColor: "#2563eb22",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
 
   avatarText: {
-    fontSize: 36,
+    fontSize: 40,
     fontWeight: "800",
     color: "#2563eb",
   },
 
   name: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#0f172a",
   },
 
   email: {
     fontSize: 14,
     color: "#475569",
-    marginTop: 5,
+    marginTop: 4,
   },
 
   /* CARD */
   card: {
-    backgroundColor: "#fff",
-    padding: 18,
+    backgroundColor: "#ffffff",
+    padding: 20,
     borderRadius: 14,
     marginBottom: 20,
-    elevation: 2,
+    elevation: 3,
   },
 
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
     color: "#1e293b",
-    marginBottom: 12,
+    marginBottom: 14,
   },
 
   row: {
@@ -221,13 +228,13 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#64748b",
-    marginBottom: 2,
+    marginBottom: 3,
   },
 
   value: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#0f172a",
   },
@@ -246,6 +253,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
+    elevation: 2,
   },
 
   backBtnText: {
